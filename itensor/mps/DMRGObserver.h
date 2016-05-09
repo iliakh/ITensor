@@ -28,7 +28,10 @@ class DMRGObserver : public Observer
 
     void virtual
     measure(const Args& args = Global::args());
-    
+
+    void virtual
+    measure(Vector& te, Vector& en, const Args& args = Global::args());
+
     bool virtual
     checkDone(const Args& args = Global::args());
 
@@ -82,6 +85,77 @@ DMRGObserver(const MPSt<Tensor>& psi, const Args& args)
 template<class Tensor>
 void inline DMRGObserver<Tensor>::
 measure(const Args& args)
+    {
+        auto N = psi_.N();
+        auto b = args.getInt("AtBond",1);
+        auto sw = args.getInt("Sweep",0);
+        auto ha = args.getInt("HalfSweep",0);
+        auto energy = args.getReal("Energy",0);
+        using IndexT = typename Tensor::index_type;
+
+        if(!args.getBool("Quiet",false) && !args.getBool("NoMeasure",false))
+        {
+            if(b < N && b > 0)
+            {
+                auto wfb = psi_.A(b)*psi_.A(b+1);
+                for(const std::string& opname : default_ops_)
+                {
+                    auto sb = IndexT(psi_.sites()(b));
+                    auto z = (dag(prime(wfb,sb))*psi_.sites().op(opname,b)*wfb).cplx();
+                    //auto z = (prime(wfb,psi_.sites()(b))*psi_.sites().op(opname,b)*wfb).cplx();
+                    if(std::fabs(z.imag()) < 1E-14)
+                        printfln("<%s>(%d) = %.10E",opname,b,z.real());
+                    else
+                        printfln("<%s>(%d) = (%.10E,%.10E)",opname,b,z.real(),z.imag());
+                }
+            }
+        }
+
+        if(printeigs)
+        {
+            if(b == N/2 && ha == 2)
+            {
+                println();
+                auto center_eigs = last_spec_.eigsKept();
+                Real S = 0;
+                for(auto& p : center_eigs)
+                {
+                    S -= p*log(std::fabs(p));
+                }
+                printfln("    vN Entropy at center bond b=%d = %.12f",N/2,S);
+                printf(  "    Eigs at center bond b=%d: ",N/2);
+                auto ten = decltype(center_eigs.size())(10);
+                for(auto j : range(std::min(center_eigs.size(),ten)))
+                {
+                    auto eig = center_eigs(j);
+                    if(eig < 1E-3) break;
+                    printf("%.4f ",eig);
+                }
+                println();
+            }
+        }
+
+        max_eigs = std::max(max_eigs,last_spec_.numEigsKept());
+        max_te = std::max(max_te,last_spec_.truncerr());
+        if(b == 1 && ha == 2)
+        {
+            if(!printeigs) println();
+            println("    Largest m during sweep ",sw," was ",(max_eigs > 1 ? max_eigs : 1));
+            max_eigs = -1;
+            println("    Largest truncation error: ",(max_te > 0 ? max_te : 0.));
+            max_te = -1;
+            printfln("    Energy after sweep %d is %.12f",sw,energy);
+        }
+
+    }
+
+//
+// measure - Modified with TE and EN vectors
+//
+
+template<class Tensor>
+void inline DMRGObserver<Tensor>::
+measure(Vector& te, Vector& en, const Args& args)
     {
     auto N = psi_.N();
     auto b = args.getInt("AtBond",1);
@@ -140,8 +214,10 @@ measure(const Args& args)
         println("    Largest m during sweep ",sw," was ",(max_eigs > 1 ? max_eigs : 1));
         max_eigs = -1;
         println("    Largest truncation error: ",(max_te > 0 ? max_te : 0.));
+        *(te.data() + sw - 1) = max_te;
         max_te = -1;
         printfln("    Energy after sweep %d is %.12f",sw,energy);
+        *(en.data() + sw - 1) = energy;
         }
 
     }
