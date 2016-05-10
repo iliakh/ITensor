@@ -214,10 +214,10 @@ measure(Vector& te, Vector& en, const Args& args)
         println("    Largest m during sweep ",sw," was ",(max_eigs > 1 ? max_eigs : 1));
         max_eigs = -1;
         println("    Largest truncation error: ",(max_te > 0 ? max_te : 0.));
-        *(te.data() + sw - 1) = max_te;
+        te(sw-1) = max_te;
         max_te = -1;
         printfln("    Energy after sweep %d is %.12f",sw,energy);
-        *(en.data() + sw - 1) = energy;
+        en(sw-1) = energy;
         }
 
     }
