@@ -218,7 +218,7 @@ measure(Vector& te, Vector& en, const Args& args)
         max_te = -1;
         printfln("    Energy after sweep %d is %.12f",sw,energy);
         en(sw-1) = energy;
-        if (en(sw-1) < 1.5*en(sw-2))
+        if ((en(sw-1) < 1.5*en(sw-2)) && (sw > 1))
             throw std::runtime_error("DMRGObserver::measure energy drop");
         }
 
