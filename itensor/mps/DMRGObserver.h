@@ -218,9 +218,16 @@ measure(Vector& te, Vector& en, const Args& args)
         max_te = -1;
         printfln("    Energy after sweep %d is %.12f",sw,energy);
         en(sw-1) = energy;
+        println("Saving state");
+        writeToFile(std::string(std::to_string(sw)) + "_state",psi_);
         if ((en(sw-1) < 1.5*en(sw-2)) && (sw > 1))
             throw std::runtime_error("DMRGObserver::measure energy drop");
+
         }
+
+        // Saving files after each sweep
+//        writeToFile(std::to_string(sw) + "_sites",psi_.sites());
+
 
     }
 
