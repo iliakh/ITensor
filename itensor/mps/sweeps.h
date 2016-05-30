@@ -41,7 +41,8 @@ class Sweeps
            Real cutoff = 1E-8);
 
     Sweeps(int nsweeps, InputGroup& sweep_table);
-    
+    Sweeps(int nsweeps, InputGroup& sweep_table, int sSweep);
+
     //Accessor methods ----------
 
     int 
@@ -116,6 +117,9 @@ class Sweeps
 
     void 
     tableInit(InputGroup& table);
+
+    void
+    tableInit(InputGroup& table, int sSweep); // Single sweep mode
 
     std::vector<int> maxm_,
                      minm_,
@@ -305,6 +309,15 @@ Sweeps(int nsw, InputGroup& sweep_table)
     tableInit(sweep_table);
     }
 
+
+inline Sweeps::
+Sweeps(int nsw, InputGroup& sweep_table, int sSweep)
+    :
+    nsweep_(nsw)
+    {
+    tableInit(sweep_table,sSweep);
+    }
+
 SweepSetter<int> inline Sweeps::
 minm() { return SweepSetter<int>(minm_); }
 
@@ -366,6 +379,39 @@ tableInit(InputGroup& table)
         }
 
     } //Sweeps::tableInit
+
+// Single sweep mode
+void inline Sweeps::
+tableInit(InputGroup& table, int sSweep)
+{
+    if(!table.GotoGroup())
+        Error("Couldn't find table " + table.name());
+
+//    int minm_;
+//    int maxm_;
+//    Real cutoff_;
+//    int niter_;
+//    Real noise_ ;
+
+    minm_ = std::vector<int>(2);
+    maxm_ = std::vector<int>(2);
+    cutoff_ = std::vector<Real>(2);
+    niter_ = std::vector<int>(2);
+    noise_ = std::vector<Real>(2);
+
+
+    table.SkipLine(); //SkipLine so we can have a table key
+    for(int i = 1; i <= nsweep_; i++)
+    {
+        if (i == sSweep) {
+            table.file() >> maxm_[1] >> minm_[1] >> cutoff_[1] >> niter_[1] >> noise_[1];
+        }
+        else
+            table.SkipLine();
+    }
+    nsweep_ = 1;
+
+} //Sweeps::tableInit
 
 void inline Sweeps::
 write(std::ostream& s) const
