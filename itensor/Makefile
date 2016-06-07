@@ -25,6 +25,8 @@ SOURCES+= itdata/qdiag.cc
 SOURCES+= itdata/qmixed.cc
 ##SOURCES+= itdata/itlazy.cc
 SOURCES+= index.cc 
+SOURCES+= itensor_interface.cc 
+SOURCES+= itensor_operators.cc 
 SOURCES+= itensor.cc 
 SOURCES+= qn.cc 
 SOURCES+= iqindex.cc 
@@ -36,6 +38,7 @@ SOURCES+= hermitian.cc
 SOURCES+= mps/mps.cc 
 SOURCES+= mps/mpsalgs.cc 
 SOURCES+= mps/mpo.cc 
+SOURCES+= mps/mpoalgs.cc 
 SOURCES+= mps/autompo.cc
 
 ####################################
@@ -135,6 +138,10 @@ indexset.o: $(ITDEPHEADERS)
 .debug_objs/indexset.o: $(ITDEPHEADERS)
 ITDEPHEADERS+= itensor_interface.h itensor_interface.ih \
 itensor.ih itensor.h itdata/itdata.h itdata/dense.h itdata/diag.h
+itensor_interface.o: $(ITDEPHEADERS) $(GDEPHEADERS)
+.debug_objs/itensor_interface.o: $(ITDEPHEADERS) $(GDEPHEADERS)
+itensor_operators.o: $(ITDEPHEADERS) $(GDEPHEADERS)
+.debug_objs/itensor_operators.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 itensor.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 .debug_objs/itensor.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 ITDEPHEADERS+= qn.h
@@ -164,3 +171,5 @@ mps/mpsalgs.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 GDEPHEADERS+= mps/mpo.h
 mps/mpo.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 .debug_objs/mps/mpo.o: $(ITDEPHEADERS) $(GDEPHEADERS)
+mps/mpoalgs.o: $(ITDEPHEADERS) $(GDEPHEADERS)
+.debug_objs/mps/mpoalgs.o: $(ITDEPHEADERS) $(GDEPHEADERS)
