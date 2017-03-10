@@ -1,37 +1,60 @@
-#include "itensor/mps/tevol.h"
-#include "Heisenberg.h"
+#include "itensor/all.h"
 
 using std::vector;
+using std::move;
 using namespace itensor;
 
+struct TGate
+    {
+    int i1 = 0;
+    int i2 = 0;
+    ITensor G;
+
+    TGate() { }
+    TGate(int i1_, int i2_, ITensor G_) 
+        : i1(i1_), i2(i2_), G(G_) { }
+    };
+
 int
-main(int argc, char* argv[])
+main()
     {
     int N = 20;
 
     auto sites = SpinHalf(N);
 
-    auto psi = MPS(sites);
+    //Set psi to be Neel state
+    auto init = InitState(sites);
+    for(auto n : range1(N))
+        {
+        init.set(n, n%2 == 1 ? "Up" : "Dn");
+        }
+    auto psi = MPS(init);
 
-    Real ttotal = 10;
+    Real ttotal = 2;
     Real tstep = 0.1;
 
-    vector<Gate> gates;
-    auto type = Gate::tImag;
+    //Create Trotter gates (imaginary time)
+    auto gates = vector<TGate>{};
 
     for(int b = 1; b < N; ++b)
         {
         ITensor hh = sites.op("Sz",b)*sites.op("Sz",b+1);
         hh += 0.5*sites.op("Sp",b)*sites.op("Sm",b+1);
         hh += 0.5*sites.op("Sm",b)*sites.op("Sp",b+1);
-        gates.push_back(Gate(sites,b,b+1,type,tstep/2.,hh));
+
+        auto G = expHermitian(hh,-tstep/2.);
+
+        gates.emplace_back(b,b+1,move(G));
         }
     for(int b = N-1; b >= 1; --b)
         {
         ITensor hh = sites.op("Sz",b)*sites.op("Sz",b+1);
         hh += 0.5*sites.op("Sp",b)*sites.op("Sm",b+1);
         hh += 0.5*sites.op("Sm",b)*sites.op("Sp",b+1);
-        gates.push_back(Gate(sites,b,b+1,type,tstep/2.,hh));
+
+        auto G = expHermitian(hh,-tstep/2.);
+
+        gates.emplace_back(b,b+1,move(G));
         }
 
     auto nt = int(ttotal/tstep+(1e-9*(ttotal/tstep)));
@@ -42,41 +65,68 @@ main(int argc, char* argv[])
 
     for(int step = 1; step <= nt; ++step)
         {
-        for(auto& G : gates)
+        for(auto& gate : gates)
             {
-            auto b = G.i1();
+            auto b = gate.i1;
+            auto& G = gate.G;
+
             psi.position(b);
             ITensor AA = psi.A(b)*psi.A(b+1);
 
             //
-            // Write code here that applies 
+            // TODO: ADD CODE here that applies 
             // the gate G to the MPS bond
-            // tensor "AA"
+            // tensor "AA" by multiplying
+            // G and AA using the * operator
             //
-            // G can be treated as an ITensor
+            // G is an ITensor
             // with index structure:
             //
-            //   s_b'   s_{b+1}'
+            //   s_{b}' s_{b+1}'
             //    |      |
             //    ========
             //    |      |
-            //   s_b    s_{b+1}
+            //   s_{b}  s_{b+1}
             //
             // After applying G to AA, don't forget
             // to reset the prime level to 0 by using
             // the noprime or mapprime methods.
             //
 
-            ITensor D;
-            svd(AA,psi.Anc(b),D,psi.Anc(b+1));
-            psi.Anc(b+1) *= D;
+
+            //Normalize AA after applying G
+            AA /= norm(AA);
+
+            //SVD AA to restore MPS form
+            auto U = psi.A(b);
+            ITensor D,V;
+            svd(AA,U,D,V,{"Cutoff",1E-10});
+            psi.setA(b,U);
+            psi.setA(b+1,D*V);
             }
-        psi.normalize();
+
         printfln("Step %d/%d",step,nt);
         }
 
-    MPO H = Heisenberg(sites);
-    printfln("Energy = %.20f",psiHphi(psi,H,psi));
+
+    //Make Heisenberg H to
+    //conveniently measure energy
+    auto ampo = AutoMPO(sites);
+    for(auto j : range1(N-1))
+        {
+        ampo += "Sz",j,"Sz",j+1;
+        ampo += 0.5,"S+",j,"S-",j+1;
+        ampo += 0.5,"S-",j,"S+",j+1;
+        }
+    auto H = MPO(ampo);
+
+    printfln("Energy = %.20f",overlap(psi,H,psi));
+
+    //
+    // Exact ground state energy of N=20
+    // Heisenberg model:
+    // E0 = -8.6824733306
+    //
 
 
     return 0;

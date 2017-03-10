@@ -52,6 +52,7 @@ class MPOt : private MPSt<Tensor>
     using Parent::leftLim;
 
     using Parent::A;
+    using Parent::Aref;
     using Parent::Anc;
 
     using Parent::doWrite;
@@ -136,13 +137,13 @@ class MPOt : private MPSt<Tensor>
 
     }; //class MPOt<Tensor>
 
-template<typename T>
-MPOt<T>&
-addAssumeOrth(MPOt<T> & L, MPOt<T> const& R, Args const& args = Args::global()) 
-    { 
-    addAssumeOrth(L,R,{args,"UseSVD",true,"LogRefNorm",L.logRefNorm()}); 
-    return L;
-    }
+//template<typename T>
+//MPOt<T>&
+//addAssumeOrth(MPOt<T> & L, MPOt<T> const& R, Args const& args = Args::global()) 
+//    { 
+//    MPSt<T>::addAssumeOrth(L,R,{args,"UseSVD",true,"LogRefNorm",L.logRefNorm()}); 
+//    return L;
+//    }
 
 
 template<class T>
@@ -245,7 +246,7 @@ overlap(MPSt<Tensor> const& psi,
 
 template <class Tensor>
 void
-psiHKphi(MPSt<Tensor> const& psi, 
+overlap(MPSt<Tensor> const& psi, 
          MPOt<Tensor> const& H, 
          MPOt<Tensor> const& K,
          MPSt<Tensor> const& phi, 
@@ -254,17 +255,17 @@ psiHKphi(MPSt<Tensor> const& psi,
 
 template <class Tensor>
 Real
-psiHKphi(MPSt<Tensor> const& psi, 
-         MPOt<Tensor> const& H, 
-         MPOt<Tensor> const& K,
-         MPSt<Tensor> const& phi);
+overlap(MPSt<Tensor> const& psi, 
+        MPOt<Tensor> const& H, 
+        MPOt<Tensor> const& K,
+        MPSt<Tensor> const& phi);
 
 template <class Tensor>
 Complex
-psiHKphiC(MPSt<Tensor> const& psi, 
-          MPOt<Tensor> const& H, 
-          MPOt<Tensor> const& K,
-          MPSt<Tensor> const& phi);
+overlapC(MPSt<Tensor> const& psi, 
+         MPOt<Tensor> const& H, 
+         MPOt<Tensor> const& K,
+         MPSt<Tensor> const& phi);
 
 template<class MPOType>
 void 

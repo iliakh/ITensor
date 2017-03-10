@@ -44,11 +44,13 @@ nameint(string const& f, int n)
 // class Index
 //
 
+
+
 Index::id_type Index::
 generateID()
     {
-    static Index::IDGenerator rng(std::time(NULL) + getpid());
-    return rng();
+    static Index::IDGenerator G;
+    return G();
     }
 
 Index::
@@ -153,13 +155,13 @@ noprimeEquals(Index const& other) const
     }
 
 IndexVal Index::
-operator()(long val)
+operator()(long val) const
     {
     return IndexVal(*this,val);
     }
 
 Index Index::
-operator[](int plev) 
+operator[](int plev) const
     { 
     auto I = *this;
     I.primeLevel(plev); 
@@ -236,7 +238,11 @@ operator<<(std::ostream & s, Index const& t)
     s << "(" << t.rawname();
     s << "," << t.m();
     s << "," << t.type().c_str();
-    if(Global::showIDs()) s << "," << (t.id() % 1000);
+    if(Global::showIDs()) 
+        {
+        s << "," << (t.id() % 1000);
+        //s << "," << t.id();
+        }
     s << ")"; 
     if(t.primeLevel() > 0) 
         {

@@ -12,7 +12,7 @@
 
 namespace itensor {
 
-const auto MAX_INT = std::numeric_limits<int>::max();
+//const auto MAX_INT = std::numeric_limits<int>::max();
 
 using std::swap;
 using std::istream;
@@ -116,6 +116,13 @@ truncate(Vector & P,
     long origm = P.size();
     long n = origm-1;
     Real docut = 0;
+
+    //Special case if P's are zero
+    if(P(0) == 0.0)
+        {
+        resize(P,1); 
+        return std::make_tuple(0.,0.);
+        }
     
     if(origm == 1) 
         {
@@ -151,7 +158,11 @@ truncate(Vector & P,
         {
         Real scale = 1.0;
         //if doRelCutoff, use normalized P's when truncating
-        if(doRelCutoff) scale = sumels(P);
+        if(doRelCutoff) 
+            {
+            scale = sumels(P);
+            if(scale == 0.0) scale = 1.0;
+            }
 
         //Continue truncating until *sum* of discarded probability 
         //weight reaches cutoff reached (or m==minm)
@@ -162,6 +173,7 @@ truncate(Vector & P,
             }
         truncerr = (scale == 0 ? 0 : truncerr/scale);
         }
+
 
     if(n < 0) n = 0;
 
@@ -184,7 +196,7 @@ showEigs(Vector const& P,
     {
     auto do_truncate = args.getBool("Truncate",true);
     auto cutoff = args.getReal("Cutoff",0.);
-    auto maxm = args.getInt("Maxm",MAX_INT);
+    auto maxm = args.getInt("Maxm",P.size());
     auto minm = args.getInt("Minm",1);
     auto doRelCutoff = args.getBool("DoRelCutoff",true);
     auto absoluteCutoff = args.getBool("AbsoluteCutoff",false);
@@ -202,11 +214,11 @@ showEigs(Vector const& P,
     if(scale.logNum() < 10 && scale.isFiniteReal())
         {
         Ps *= sqr(scale.real0());
-        print("Density matrix evals:");
+        print("Eigenvalues:");
         }
     else
         {
-        print("Density matrix evals [not including scale = ",scale.logNum(),"]:");
+        print("Eigenvalues [not including scale = ",scale.logNum(),"]:");
         }
 
     for(auto n : range(Ps))
@@ -220,7 +232,7 @@ showEigs(Vector const& P,
 
 
 template<typename Tensor>
-void
+Spectrum
 factor(Tensor const& T,
        Tensor      & A,
        Tensor      & B,
@@ -228,7 +240,7 @@ factor(Tensor const& T,
     {
     auto name = args.getString("IndexName","c");
     Tensor D;
-    svd(T,A,D,B,{args,"LeftIndexName=",name});
+    auto spec = svd(T,A,D,B,{args,"LeftIndexName=",name});
     auto dl = commonIndex(A,D);
     auto dr = commonIndex(B,D);
     D.apply([](Real x){ return std::sqrt(std::fabs(x)); });
@@ -236,10 +248,11 @@ factor(Tensor const& T,
     B *= D;
     //Replace index dl with dr
     A *= delta(dl,dr);
+    return spec;
     }
-template void
+template Spectrum
 factor(ITensor const& T,ITensor& A,ITensor & B,Args const& args);
-template void
+template Spectrum
 factor(IQTensor const& T,IQTensor& A,IQTensor & B,Args const& args);
 
 template<typename value_type>

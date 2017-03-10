@@ -60,7 +60,7 @@ class DMRGObserver : public Observer
     Real last_energy_;
     Spectrum last_spec_;
 
-    SiteSet::DefaultOpsT default_ops_;
+    //SiteSet::DefaultOpsT default_ops_;
 
     //
     /////////////
@@ -77,8 +77,8 @@ DMRGObserver(const MPSt<Tensor>& psi, const Args& args)
     max_eigs(-1),
     max_te(-1),
     done_(false),
-    last_energy_(1000),
-    default_ops_(psi.sites().defaultOps())
+    last_energy_(1000)
+    //default_ops_(psi.sites().defaultOps())
     { 
     }
 
@@ -163,24 +163,23 @@ measure(Vector& te, Vector& en, const Args& args)
     auto ha = args.getInt("HalfSweep",0);
     auto energy = args.getReal("Energy",0);
     auto saveEchswp = args.getBool("SaveEchSwp",true);
-
-    using IndexT = typename Tensor::index_type;
+    //using IndexT = typename Tensor::index_type;
 
     if(!args.getBool("Quiet",false) && !args.getBool("NoMeasure",false))
         {
         if(b < N && b > 0)
             {
             auto wfb = psi_.A(b)*psi_.A(b+1);
-            for(const std::string& opname : default_ops_)
-                {
-                auto sb = IndexT(psi_.sites()(b));
-                auto z = (dag(prime(wfb,sb))*psi_.sites().op(opname,b)*wfb).cplx();
-                //auto z = (prime(wfb,psi_.sites()(b))*psi_.sites().op(opname,b)*wfb).cplx();
-                if(std::fabs(z.imag()) < 1E-14)
-                    printfln("<%s>(%d) = %.10E",opname,b,z.real());
-                else
-                    printfln("<%s>(%d) = (%.10E,%.10E)",opname,b,z.real(),z.imag());
-                }
+            //for(const std::string& opname : default_ops_)
+            //    {
+            //    auto sb = IndexT(psi_.sites()(b));
+            //    auto z = (dag(prime(wfb,sb))*psi_.sites().op(opname,b)*wfb).cplx();
+            //    //auto z = (prime(wfb,psi_.sites()(b))*psi_.sites().op(opname,b)*wfb).cplx();
+            //    if(std::fabs(z.imag()) < 1E-14)
+            //        printfln("<%s>(%d) = %.10E",opname,b,z.real());
+            //    else
+            //        printfln("<%s>(%d) = (%.10E,%.10E)",opname,b,z.real(),z.imag());
+            //    }
             }
         }
 
@@ -193,8 +192,9 @@ measure(Vector& te, Vector& en, const Args& args)
             Real S = 0;
             for(auto& p : center_eigs)
                 {
-                S -= p*log(std::fabs(p));
+                if(p > 1E-13) S += p*log(p);
                 }
+            S *= -1;
             printfln("    vN Entropy at center bond b=%d = %.12f",N/2,S);
             printf(  "    Eigs at center bond b=%d: ",N/2);
             auto ten = decltype(center_eigs.size())(10);
