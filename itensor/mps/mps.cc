@@ -737,7 +737,7 @@ position(int i, Args const& args)
             {
             if(l_orth_lim_ < 0) l_orth_lim_ = 0;
             setBond(l_orth_lim_+1);
-            orthMPS(Anc(l_orth_lim_+1),Anc(l_orth_lim_+2),Fromleft,args);
+            orthMPS(Aref(l_orth_lim_+1),Aref(l_orth_lim_+2),Fromleft,args);
             ++l_orth_lim_;
             if(r_orth_lim_ < l_orth_lim_+2) r_orth_lim_ = l_orth_lim_+2;
             }
@@ -745,7 +745,7 @@ position(int i, Args const& args)
             {
             if(r_orth_lim_ > N_+1) r_orth_lim_ = N_+1;
             setBond(r_orth_lim_-2);
-            orthMPS(Anc(r_orth_lim_-2),Anc(r_orth_lim_-1),Fromright,args);
+            orthMPS(Aref(r_orth_lim_-2),Aref(r_orth_lim_-1),Fromright,args);
             --r_orth_lim_;
             if(l_orth_lim_ > r_orth_lim_-2) l_orth_lim_ = r_orth_lim_-2;
             }
@@ -779,16 +779,18 @@ orthogonalize(Args const& args)
     auto maxm_set = args.defined("Maxm");
     if(maxm_set) dargs.add("Maxm",args.getInt("Maxm"));
 
+    int plev = 14741;
+
     //Build environment tensors from the left
     auto E = vector<Tensor>(N_+1);
-    E.at(1) = A_.at(1)*dag(prime(A_.at(1),Link,10));
+    auto ci = commonIndex(A_.at(1),A_.at(2),Link);
+    E.at(1) = A_.at(1)*dag(prime(A_.at(1),ci,plev));
     for(int j = 2; j < N_; ++j)
         {
-        E.at(j) = E.at(j-1) * A_.at(j) * dag(prime(A_.at(j),Link,10));
+        E.at(j) = E.at(j-1) * A_.at(j) * dag(prime(A_.at(j),Link,plev));
         }
 
-    auto rho = E.at(N_-1) * A_.at(N_) * dag(prime(A_.at(N_),10));
-
+    auto rho = E.at(N_-1) * A_.at(N_) * dag(prime(A_.at(N_),plev));
     Tensor U,D;
     diagHermitian(rho,U,D,dargs);
 
@@ -806,7 +808,7 @@ orthogonalize(Args const& args)
             auto maxm = (ci) ? ci.m() : 1l;
             dargs.add("Maxm",maxm);
             }
-        rho = E.at(j-1) * O * dag(prime(O,10));
+        rho = E.at(j-1) * O * dag(prime(O,plev));
         auto spec = diagHermitian(rho,U,D,dargs);
         O *= U;
         O *= A_.at(j-1);
@@ -1687,6 +1689,22 @@ operator<<(std::ostream& s, InitState const& state)
         s << state(i) << "\n";
         }
     return s;
+    }
+
+MPS
+toMPS(IQMPS const& psi)
+    {
+    int N = psi.N();
+    MPS res;
+    if(psi.sites()) res = MPS(psi.sites());
+    else            res = MPS(N);
+    for(int j = 0; j <= N+1; ++j)
+        {
+        res.Aref(j) = ITensor(psi.A(j));
+        }
+    res.leftLim(psi.leftLim());
+    res.rightLim(psi.rightLim());
+    return res;
     }
 
 } //namespace itensor

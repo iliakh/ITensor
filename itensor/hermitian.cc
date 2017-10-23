@@ -28,29 +28,30 @@ using std::tie;
 
 template<typename T>
 Spectrum
-diagHImpl(ITensor rho, 
+diagHImpl(ITensor H, 
           ITensor& U, 
           ITensor& D,
           Args const& args)
     {
     auto cutoff = args.getReal("Cutoff",0.);
-    auto maxm = args.getInt("Maxm",rho.inds().front().m());
+    auto maxm = args.getInt("Maxm",H.inds().front().m());
     auto minm = args.getInt("Minm",1);
     auto def_do_trunc = args.defined("Cutoff") || args.defined("Maxm");
     auto do_truncate = args.getBool("Truncate",def_do_trunc);
     auto doRelCutoff = args.getBool("DoRelCutoff",true);
     auto absoluteCutoff = args.getBool("AbsoluteCutoff",false);
     auto showeigs = args.getBool("ShowEigs",false);
+    auto iname = args.getString("IndexName","d");
 
-    if(rho.r() != 2)
+    if(H.r() != 2)
         {
-        Print(rho.r());
-        Print(rho);
+        Print(H.r());
+        Print(H);
         Error("Rank greater than 2 in diag_hermitian");
         }
 
-    auto i1 = rho.inds().front();
-    auto i2 = rho.inds().back();
+    auto i1 = H.inds().front();
+    auto i2 = H.inds().back();
 
     auto active = (i1.primeLevel() < i2.primeLevel()) ? i1 : i2;
 
@@ -58,16 +59,16 @@ diagHImpl(ITensor rho,
 
 
     //Depending on the sign of the scale, calling .toMatrix11NoScale 
-    //yields a matrix proportional to either rho or -rho.
-    //If rho (scale().sign() > 0) then want to temporarily reverse 
+    //yields a matrix proportional to either H or -H.
+    //If H (scale().sign() > 0) then want to temporarily reverse 
     //the sign of the matrix when calling the diagonalization routine
     //to ensure eigenvalues are ordered from largest to smallest.
-    if(rho.scale().sign() < 0) rho.scaleTo(rho.scale()*(-1));
+    if(H.scale().sign() < 0) H.scaleTo(H.scale()*(-1));
 
     //Do the diagonalization
     Vector DD;
     Mat<T> UU,iUU;
-    auto R = toMatRefc<T>(rho,active,prime(active));
+    auto R = toMatRefc<T>(H,active,prime(active));
     diagHermitian(R,UU,DD);
     conjugate(UU);
 
@@ -102,17 +103,17 @@ diagHImpl(ITensor rho,
         showargs.add("Truncate",do_truncate);
         showargs.add("DoRelCutoff",doRelCutoff);
         showargs.add("AbsoluteCutoff",absoluteCutoff);
-        showEigs(DD,truncerr,sqrt(rho.scale()),showargs);
+        showEigs(DD,truncerr,sqrt(H.scale()),showargs);
         }
 
-    auto newmid = Index(active.rawname(),m,active.type());
+    auto newmid = Index(iname,m,active.type());
 
     U = ITensor({active,newmid},Dense<T>{move(UU.storage())}); 
-    D = ITensor({prime(newmid,pdiff),newmid},DiagReal{DD.begin(),DD.end()},rho.scale());
+    D = ITensor({prime(newmid,pdiff),newmid},DiagReal{DD.begin(),DD.end()},H.scale());
 
-    if(not rho.scale().isTooBigForReal())
+    if(not H.scale().isTooBigForReal())
         {
-        DD *= rho.scale().real0();
+        DD *= H.scale().real0();
         }
     else
         {
@@ -124,7 +125,7 @@ diagHImpl(ITensor rho,
 
 template<typename T>
 Spectrum
-diagHImpl(IQTensor    rho, 
+diagHImpl(IQTensor    H, 
           IQTensor  & U, 
           IQTensor  & D,
           Args const& args)
@@ -139,30 +140,31 @@ diagHImpl(IQTensor    rho,
     auto absoluteCutoff = args.getBool("AbsoluteCutoff",false);
     auto showeigs = args.getBool("ShowEigs",false);
     auto compute_qns = args.getBool("ComputeQNs",false);
+    auto iname = args.getString("IndexName","d");
 
-    if(rho.r() != 2)
+    if(H.r() != 2)
         {
-        Print(rho.inds());
+        Print(H.inds());
         Error("diag_hermitian requires rank 2 input tensor");
         }
     
-    auto i1 = rho.inds().front();
-    auto i2 = rho.inds().back();
+    auto i1 = H.inds().front();
+    auto i2 = H.inds().back();
     auto ai = (i1.primeLevel() < i2.primeLevel()) ? i1 : i2;
     auto pdiff = std::abs(i1.primeLevel()-i2.primeLevel());
 
 #ifdef DEBUG
     auto Zero = QN();
-    if(div(rho) != Zero)
+    if(div(H) != Zero)
         { 
-        Print(rho); 
-        Error("Non-zero divergence of rho, QNs not conserved by Hamiltonian?");
+        Print(H); 
+        Error("diagHermitian currently only defined for block-diagonal IQTensors");
         }
 #endif
 
-    if(rho.scale().sign() < 0) rho.scaleTo(rho.scale()*(-1));
+    if(H.scale().sign() < 0) H.scaleTo(H.scale()*(-1));
 
-    auto blocks = doTask(GetBlocks<T>{rho.inds(),ai,prime(ai,pdiff)},rho.store());
+    auto blocks = doTask(GetBlocks<T>{H.inds(),ai,prime(ai,pdiff)},H.store());
     auto Nblock = blocks.size();
 
     size_t totaldsize = 0,
@@ -183,7 +185,7 @@ diagHImpl(IQTensor    rho,
     auto alleigqn = vector<EigQN>{};
     if(compute_qns) alleigqn = stdx::reserve_vector<EigQN>(ai.m());
 
-    //1. Diagonalize each ITensor within rho.
+    //1. Diagonalize each ITensor within H.
     //   Store results in mmatrix and mvector.
     totaldsize = 0;
     totalUsize = 0;
@@ -244,7 +246,7 @@ diagHImpl(IQTensor    rho,
         showargs.add("Truncate",do_truncate);
         showargs.add("DoRelCutoff",doRelCutoff);
         showargs.add("AbsoluteCutoff",absoluteCutoff);
-        showEigs(probs,truncerr,rho.scale(),showargs);
+        showEigs(probs,truncerr,H.scale(),showargs);
         }
 
     if(m > maxm)
@@ -257,7 +259,7 @@ diagHImpl(IQTensor    rho,
         printfln("WARNING: very large m = %d in diag_hermitian",m);
         }
 
-    //3. Truncate eigenvalues and eigenvectors of rho
+    //3. Truncate eigenvalues and eigenvectors of H
 
     //Form new Link IQIndex with appropriate m's for each block
     IQIndex::storage iq;
@@ -287,17 +289,17 @@ diagHImpl(IQTensor    rho,
         d = subVector(d,0,this_m);
         UU = columns(UU,0,this_m);
 
-        iq.emplace_back(Index(nameint("d",b),this_m),ai.qn(1+B.i1));
+        iq.emplace_back(Index(iname+nameint("_",b),this_m),ai.qn(1+B.i1));
         }
 
     if(iq.empty())
         {
         if(blocks.empty()) Error("No blocks in IQTensor svd");
         auto& B = blocks.front();
-        iq.emplace_back(Index(nameint("d",0),1),ai.qn(1+B.i1));
+        iq.emplace_back(Index(iname+nameint("_",0),1),ai.qn(1+B.i1));
         }
 
-    auto d = IQIndex("d",move(iq),-ai.dir());
+    auto d = IQIndex(iname,move(iq),-ai.dir());
 
     auto Uis = IQIndexSet(dag(ai),dag(d));
     auto Dis = IQIndexSet(prime(d,pdiff),dag(d));
@@ -333,15 +335,15 @@ diagHImpl(IQTensor    rho,
         }
 
     U = IQTensor(Uis,move(Ustore));
-    D = IQTensor(Dis,move(Dstore),rho.scale());
+    D = IQTensor(Dis,move(Dstore),H.scale());
 
-    if(rho.scale().isTooBigForReal())
+    if(H.scale().isTooBigForReal())
         {
         println("scale too big, omitting from reported eigenvalues");
         }
     else
         {
-        probs *= rho.scale().real0();
+        probs *= H.scale().real0();
         }
 
     if(compute_qns)
@@ -356,26 +358,26 @@ diagHImpl(IQTensor    rho,
 
 template<typename I>
 Spectrum
-diag_hermitian(ITensorT<I>    rho, 
+diag_hermitian(ITensorT<I>    H, 
                ITensorT<I>  & U, 
                ITensorT<I>  & D,
                Args const& args)
     {
-    if(isComplex(rho))
+    if(isComplex(H))
         {
-        return diagHImpl<Cplx>(rho,U,D,args);
+        return diagHImpl<Cplx>(H,U,D,args);
         }
-    return diagHImpl<Real>(rho,U,D,args);
+    return diagHImpl<Real>(H,U,D,args);
     }
 template
 Spectrum
-diag_hermitian(ITensor    rho, 
+diag_hermitian(ITensor    H, 
                ITensor  & U, 
                ITensor  & D,
                Args const& args);
 template
 Spectrum
-diag_hermitian(IQTensor    rho, 
+diag_hermitian(IQTensor    H, 
                IQTensor  & U, 
                IQTensor  & D,
                Args const& args);

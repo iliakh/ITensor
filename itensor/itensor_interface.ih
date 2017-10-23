@@ -166,7 +166,8 @@ real(IVals&&... ivs) const
     if(fabs(z.imag()) > 1E-14*fabs(z.real()))
         {
         printfln("element = (%.5E,%.5E)",z.real(),z.imag());
-        Error("tensor is Complex valued, use .cplx(...) method");
+        //Error("tensor is Complex valued, use .cplx(...) method");
+        throw ITError("tensor is complex valued, use .cplx(...) method");
         }
     return z.real();
     }
@@ -230,15 +231,15 @@ getVals(Iter it,
 
 
 template<typename IndexT>
-template<typename... VArgs>
-void ITensorT<IndexT>::
-set(VArgs&&... vargs)
+template<typename IV, typename... VArgs>
+auto ITensorT<IndexT>::
+set(IV const& iv1, VArgs&&... vargs)
+    -> stdx::if_compiles_return<void,decltype(iv1.index),decltype(iv1.val)>
     {
-    using indexval_type = typename IndexT::indexval_type;
-    static constexpr auto size = sizeof...(vargs)-1;
+    static constexpr auto size = 1+(sizeof...(vargs)-1);
     std::array<indexval_type,size> vals;
     Cplx z;
-    detail::getVals<indexval_type>(vals.begin(),z,std::forward<VArgs&&>(vargs)...);
+    detail::getVals<indexval_type>(vals.begin(),z,iv1,std::forward<VArgs&&>(vargs)...);
     if(size != size_t(inds().r())) 
         {
         println("---------------------------------------------");
@@ -247,10 +248,12 @@ set(VArgs&&... vargs)
         println("Indices provided = ");
         for(auto& iv : vals) println(iv.index);
         println("---------------------------------------------");
-        Error(format("Wrong number of IndexVals passed to set (expected %d, got %d)",inds().r(),size));
+        Error(format("Wrong number of IndexVals passed to set (expected %d, got %d)",
+                     inds().r(),size));
         }
     auto inds = IntArray(is_.r(),0);
-    detail::permute_map(is_,vals,inds,[](const indexval_type& iv) { return iv.val-1; });
+    detail::permute_map(is_,vals,inds,
+                        [](indexval_type const& iv) { return iv.val-1; });
     //TODO: if !store_ and !is_real, call allocCplx instead
     //and move this line after check for is_real
     if(!store_) detail::allocReal(*this,inds); 
@@ -262,6 +265,60 @@ set(VArgs&&... vargs)
     else
         {
         doTask(SetElt<Cplx,IndexT>{z,is_,inds},store_);
+        }
+    }
+
+template<typename IndexT>
+void ITensorT<IndexT>::
+set(Cplx val)
+    {
+    if(0 != size_t(inds().r())) 
+        {
+        Error(format("Wrong number of IndexVals passed to set (expected %d, got 0)",
+                     inds().r()));
+        }
+    auto inds = IntArray(0,1);
+    if(!store_) detail::allocReal(*this,inds); 
+    scaleTo(1.);
+    if(val.imag()==0.)
+        {
+        doTask(SetElt<Real,IndexT>{val.real(),is_,inds},store_);
+        }
+    else
+        {
+        doTask(SetElt<Cplx,IndexT>{val,is_,inds},store_);
+        }
+    }
+
+template<typename IndexT>
+void ITensorT<IndexT>::
+set(std::vector<typename IndexT::indexval_type> const& ivals,
+    Cplx val)
+    {
+    auto size = ivals.size();
+    if(size != size_t(inds().r())) 
+        {
+        println("---------------------------------------------");
+        println("Tensor indices = \n",inds(),"\n");
+        println("---------------------------------------------");
+        println("Indices provided = ");
+        for(auto& iv : ivals) println(iv.index);
+        println("---------------------------------------------");
+        Error(format("Wrong number of IndexVals passed to set (expected %d, got %d)",
+                     inds().r(),size));
+        }
+    auto inds = IntArray(is_.r(),0);
+    detail::permute_map(is_,ivals,inds,
+                        [](indexval_type const& iv) { return iv.val-1; });
+    if(!store_) detail::allocReal(*this,inds); 
+    scaleTo(1.);
+    if(val.imag()==0.0)
+        {
+        doTask(SetElt<Real,IndexT>{val.real(),is_,inds},store_);
+        }
+    else
+        {
+        doTask(SetElt<Cplx,IndexT>{val,is_,inds},store_);
         }
     }
 
@@ -367,6 +424,15 @@ setElt(IVal const& iv1,
     return D;
     }
 
+template <typename IndexT>
+ITensorT<IndexT> ITensorT<IndexT>::
+operator-() 
+    { 
+    auto res = *this;
+    res.scale_.negate();
+    return res;
+    }
+
 template<typename I>
 ITensorT<I> 
 operator*(ITensorT<I> A, ITensorT<I> const& B) { A *= B; return A; }
@@ -413,6 +479,7 @@ template<typename I>
 ITensorT<I>
 operator/(ITensorT<I> const& A, ITensorT<I> && B) { B /= A; return B; }
 
+
 template<typename IndexT, typename... VarArgs>
 ITensorT<IndexT>
 prime(ITensorT<IndexT> A, 
@@ -446,6 +513,15 @@ mapprime(ITensorT<IndexT> A,
          VarArgs&&... vargs)
     {
     A.mapprime(std::forward<VarArgs>(vargs)...);
+    return A;
+    }
+
+template<typename IndexT, typename... VarArgs>
+ITensorT<IndexT>
+sim(ITensorT<IndexT> A, 
+    VarArgs&&... vargs)
+    {
+    A.sim(std::forward<VarArgs>(vargs)...);
     return A;
     }
 
@@ -519,9 +595,16 @@ apply(ITensorT<I> T, F&& f)
 
 template<typename I>
 bool
-isComplex(const ITensorT<I>& T)
+isComplex(ITensorT<I> const& T)
     {
     return doTask(CheckComplex{},T.store());
+    }
+
+template<typename I>
+bool
+isReal(ITensorT<I> const& T)
+    {
+    return not isComplex(T);
     }
 
 template<typename I>
@@ -593,32 +676,32 @@ readType(std::istream& s, CtrArgs&&... args)
     }
 
 template<typename I>
-void
-read(std::istream& s, ITensorT<I> & T)
+void ITensorT<I>::
+read(std::istream& s)
     {
-    IndexSetT<I> is;
-    read(s,is);
+    itensor::read(s,is_);
     LogNum scale;
-    read(s,scale);
+    itensor::read(s,scale_);
     auto type = StorageType::Null;
-    read(s,type);
-    ITensor::storage_ptr p;
+    itensor::read(s,type);
     if(type==StorageType::Null) { /*intentionally left blank*/  }
-    else if(type==StorageType::DenseReal) { p = readType<DenseReal>(s); }
-    else if(type==StorageType::DenseCplx) { p = readType<DenseCplx>(s); }
-    else if(type==StorageType::Combiner) { p = readType<Combiner>(s); }
-    else if(type==StorageType::DiagReal) { p = readType<Diag<Real>>(s); }
-    else if(type==StorageType::DiagCplx) { p = readType<Diag<Cplx>>(s); }
-    else if(type==StorageType::QDenseReal) { p = readType<QDense<Real>>(s); }
-    else if(type==StorageType::QDenseCplx) { p = readType<QDense<Cplx>>(s); }
-    else if(type==StorageType::QDiagReal) { p = readType<QDiag<Real>>(s); }
-    else if(type==StorageType::QDiagCplx) { p = readType<QDiag<Cplx>>(s); }
-    else if(type==StorageType::QCombiner) { p = readType<QCombiner>(s); }
+    else if(type==StorageType::DenseReal) { store_ = readType<DenseReal>(s); }
+    else if(type==StorageType::DenseCplx) { store_ = readType<DenseCplx>(s); }
+    else if(type==StorageType::Combiner) { store_ = readType<Combiner>(s); }
+    else if(type==StorageType::DiagReal) { store_ = readType<Diag<Real>>(s); }
+    else if(type==StorageType::DiagCplx) { store_ = readType<Diag<Cplx>>(s); }
+    else if(type==StorageType::QDenseReal) { store_ = readType<QDense<Real>>(s); }
+    else if(type==StorageType::QDenseCplx) { store_ = readType<QDense<Cplx>>(s); }
+    else if(type==StorageType::QDiagReal) { store_ = readType<QDiag<Real>>(s); }
+    else if(type==StorageType::QDiagCplx) { store_ = readType<QDiag<Cplx>>(s); }
+    else if(type==StorageType::QCombiner) { store_ = readType<QCombiner>(s); }
+    else if(type==StorageType::ScalarReal) { store_ = readType<ScalarReal>(s); }
+    else if(type==StorageType::ScalarCplx) { store_ = readType<ScalarCplx>(s); }
     else
         {
         Error("Unrecognized type when reading tensor from istream");
         }
-    T = ITensorT<I>(std::move(is),std::move(p),scale);
+    //T = ITensorT<I>(std::move(is),std::move(p),scale);
     }
 
 struct Write
@@ -639,9 +722,9 @@ doTask(Write & W, D const& d)
     write(W.s,d);
     }
 
-template<typename I>
-void
-write(std::ostream& s, ITensorT<I> const& T);
+//template<typename I>
+//void
+//write(std::ostream& s, ITensorT<I> const& T);
 
 
 } // namespace itensor

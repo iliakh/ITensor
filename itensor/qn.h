@@ -73,7 +73,7 @@ struct QNVal
 
     QNVal() { }
 
-    QNVal(qn_t v) : val_(v), mod_(1) { }
+    explicit QNVal(qn_t v) : val_(v), mod_(1) { }
 
     QNVal(qn_t v, qn_t m) : mod_(m) { set(v); }
 
@@ -323,7 +323,7 @@ int inline
 Nf(QN const& q) { return isActive(q,2) ? q(2) : q(1); }
 
 int inline
-Pf(QN const& q) { return Nf(q)%2; }
+Pf(QN const& q) { return std::abs(Nf(q))%2; }
 
 int inline
 Nfp(QN const& q) { return Pf(q); }

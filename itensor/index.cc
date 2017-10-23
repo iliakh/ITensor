@@ -184,7 +184,17 @@ read(std::istream& s)
     {
     itensor::read(s,primelevel_);
     itensor::read(s,type_);
-    itensor::read(s,id_);
+    if(Global::read32BitIDs())
+        {
+        using ID32 = std::mt19937::result_type;
+        ID32 oldid = 0;
+        itensor::read(s,oldid);
+        id_ = oldid;
+        }
+    else
+        {
+        itensor::read(s,id_);
+        }
     itensor::read(s,m_);
     itensor::read(s,name_);
 
@@ -235,12 +245,12 @@ operator<(Index const& i1, Index const& i2)
 std::ostream& 
 operator<<(std::ostream & s, Index const& t)
     {
-    s << "(" << t.rawname();
-    s << "," << t.m();
+    s << "(\"" << t.rawname();
+    s << "\"," << t.m();
     s << "," << t.type().c_str();
     if(Global::showIDs()) 
         {
-        s << "," << (t.id() % 1000);
+        s << "|" << (t.id() % 1000);
         //s << "," << t.id();
         }
     s << ")"; 
@@ -307,9 +317,15 @@ operator==(IndexVal const& iv, Index const& I)
     return iv.index == I;
     }
 
+Index
+sim(Index const& I, int plev)
+    {
+    return Index("~"+I.rawname(),I.m(),I.type(),plev);
+    }
 
 string
 showm(Index const& I) { return nameint("m=",I.m()); }
+
 
 std::ostream& 
 operator<<(std::ostream& s, IndexVal const& iv)

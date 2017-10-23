@@ -4,6 +4,7 @@
 #include "itensor/util/range.h"
 #include "itensor/util/set_scoped.h"
 #include "itensor/iqindex.h"
+#include "itensor/util/print_macro.h"
 #include <cstdlib>
 
 using namespace std;
@@ -110,7 +111,8 @@ Index b8("b8",8);
 
 Index J("J",10),
       K("K",10),
-      L("L",10);
+      L("L",10),
+      M("M",10);
 
 IndexSet mixed_inds(a2,b3,l1,l2,a4,l4);
 
@@ -343,6 +345,17 @@ CHECK_CLOSE(T.real(s1(1),s2(2)),3);
 T.set(s2(2),s1(1),3+5_i);
 CHECK(isComplex(T));
 CHECK_CLOSE(T.cplx(s1(1),s2(2)),3+5_i);
+}
+
+SECTION("Set Using vector<IndexVal>")
+{
+auto T = ITensor(s1,s2);
+auto v12 = vector<IndexVal>{{s2(2),s1(1)}};
+T.set(v12,12);
+auto v21 = vector<IndexVal>{{s1(2),s2(1)}};
+T.set(v21,21);
+CHECK_CLOSE(T.real(s1(1),s2(2)),12);
+CHECK_CLOSE(T.real(s1(2),s2(1)),21);
 }
 
 SECTION("IndexValConstructors")
@@ -639,6 +652,31 @@ SECTION("Diag Apply")
     auto adcc = apply(dc,fcc);
     CHECK(isComplex(adcc));
     CHECK(norm(2*dc - adcc) < 1E-12);
+    }
+
+SECTION("Diag Visit")
+    {
+    auto i = Index("i",4);
+    auto j = Index("j",4);
+
+    auto vr = vector<Real>{{3.,4.,5.,6.}};
+    auto vc = vector<Cplx>{{3._i,4.,5._i,6.}};
+
+    auto dr = diagTensor(vr,i,j);
+    auto dc = diagTensor(vc,i,j);
+
+    auto rtot1 = stdx::accumulate(vr,0.);
+    auto rtot2 = 0.;
+    auto doTotr = [&rtot2](Real r) { rtot2 += r; };
+    dr.visit(doTotr);
+    CHECK_CLOSE(rtot1,rtot2);
+
+    auto ctot1 = stdx::accumulate(vc,0._i);
+    auto ctot2 = 0._i;
+    auto doTotc = [&ctot2](Cplx c) { ctot2 += c; };
+    dc.visit(doTotc);
+    CHECK_CLOSE(ctot1,ctot2);
+
     }
 
 }
@@ -1427,17 +1465,31 @@ SECTION("Contract All Dense Inds; Diag Scalar result")
     CHECK_CLOSE(R.real(),val);
     }
 
-SECTION("Contract All Dense Inds; Diag result")
+SECTION("Contract All Dense Inds; Rank == 1 Diag result")
     {
     auto T = randomTensor(J,K);
     
     auto d = delta(J,K,L);
     auto R = d*T;
-    CHECK(typeOf(R) == Type::DiagReal);
+    CHECK(typeOf(R) == Type::DenseReal);
     CHECK(hasindex(R,L));
     auto minjkl = std::min(std::min(J.m(),K.m()),L.m());
     for(long j = 1; j <= minjkl; ++j)
         CHECK_CLOSE(R.real(L(j)), T.real(J(j),K(j)));
+    }
+
+SECTION("Contract All Dense Inds; Rank > 1 Diag result")
+    {
+    auto T = randomTensor(J,K);
+    
+    auto d = delta(J,K,L,M);
+    auto R = d*T;
+    CHECK(typeOf(R) == Type::DiagReal);
+    CHECK(hasindex(R,L));
+    CHECK(hasindex(R,M));
+    auto minjkl = std::min(std::min(J.m(),K.m()),L.m());
+    for(long j = 1; j <= minjkl; ++j)
+        CHECK_CLOSE(R.real(L(j),M(j)), T.real(J(j),K(j)));
     }
 SECTION("Two-index delta Tensor as Index Replacer")
     {
@@ -1505,6 +1557,8 @@ SECTION("Combiner")
         auto ci = commonIndex(C,R1);
         CHECK(ci);
         CHECK(ci.m() == s1.m()*s2.m());
+
+        CHECK(ci == combinedIndex(C));
 
         for(int i1 = 1; i1 <= s1.m(); ++i1)
         for(int i2 = 1; i2 <= s2.m(); ++i2)
@@ -2310,7 +2364,117 @@ SECTION("IndexVal times Scalar")
 //    CHECK(Norm(v-t2.diag()) < 1E-12);
 //    }
 
+SECTION("Scalar Storage")
+    {
+    auto S1 = ITensor(1.);
+    CHECK_CLOSE(S1.real(),1.);
 
+    auto S2 = ITensor(1.)*2.;
+    CHECK_CLOSE(S2.real(),2.);
+
+    auto ZA = ITensor(1._i);
+    CHECK_CLOSE(ZA.cplx(),1._i);
+
+    auto ZB = ITensor(-1.+2._i);
+    CHECK_CLOSE(ZB.cplx(),-1+2._i);
+
+    SECTION("Set")
+        {
+        S1.set(4.5);
+        CHECK_CLOSE(S1.real(),4.5);
+        S1.set(1.+3._i);
+        CHECK(isComplex(S1));
+        CHECK_CLOSE(S1.cplx(),1.+3._i);
+
+        ZA.set(2.-3._i);
+        CHECK_CLOSE(ZA.cplx(),2.-3._i);
+        ZA.set(3.0);
+        CHECK(isReal(ZA));
+        CHECK_CLOSE(ZA.real(),3.);
+        }
+
+    SECTION("Norm")
+        {
+        CHECK_CLOSE(norm(S1),1.);
+        CHECK_CLOSE(norm(S2),2.);
+        auto Sn2 = ITensor(-2.);
+        CHECK_CLOSE(norm(Sn2),2.);
+
+        CHECK_CLOSE(norm(ZA),std::norm(ZA.cplx()));
+        }
+
+    auto i = Index("i",3);
+    auto j = Index("j",4);
+    auto T = randomTensor(i,j);
+    auto TC = randomTensorC(i,j);
+
+    SECTION("Multiply on right")
+        {
+        auto R = T*S1;
+        CHECK(norm(R-T) < 1E-12);
+        R = T*S2;
+        CHECK(norm(R-2*T) < 1E-12);
+        R = TC*S2;
+        CHECK(norm(R-2*TC) < 1E-12);
+
+        R = T*ZA;
+        CHECK(isComplex(R));
+        CHECK(norm(R-ZA.cplx()*T) < 1E-12);
+        R = TC*ZA;
+        CHECK(norm(R-ZA.cplx()*TC) < 1E-12);
+        }
+    SECTION("Multiply on left")
+        {
+        auto R = S1*T;
+        CHECK(norm(R-T) < 1E-12);
+        R = S2*T;
+        CHECK(norm(R-2*T) < 1E-12);
+        R = S2*TC;
+        CHECK(norm(R-2*TC) < 1E-12);
+
+        R = ZA*T;
+        CHECK(isComplex(R));
+        CHECK(norm(R-ZA.cplx()*T) < 1E-12);
+
+        R = ZA*TC;
+        CHECK(norm(R-ZA.cplx()*TC) < 1E-12);
+        }
+    SECTION("Add & Subtract")
+        {
+        auto R = S1 + S2;
+        CHECK_CLOSE(R.real(),3.);
+
+        R = ZA+ZB;
+        CHECK_CLOSE(R.cplx(),ZA.cplx()+ZB.cplx());
+
+        R = S1 - S2;
+        CHECK_CLOSE(R.real(),-1.);
+
+        R = ZA-ZB;
+        CHECK_CLOSE(R.cplx(),ZA.cplx()-ZB.cplx());
+        }
+    }
+
+SECTION("ITensor Negation")
+    {
+    auto i = Index("i",2);
+    auto j = Index("j",2);
+    auto k = Index("k",2);
+    auto T = randomTensor(i,j,k);
+    //Print(T.real(i(1),j(1),k(1)));
+    auto oT = T;
+    auto N = -T;
+    //Print(oT.real(i(1),j(1),k(1)));
+    //Print(T.real(i(1),j(1),k(1)));
+    //Print(N.real(i(1),j(1),k(1)));
+    for(auto ii : range1(i))
+    for(auto ij : range1(j))
+    for(auto ik : range1(k))
+        {
+        CHECK_CLOSE(oT.real(i(ii),j(ij),k(ik)),T.real(i(ii),j(ij),k(ik)));
+        CHECK_CLOSE(-oT.real(i(ii),j(ij),k(ik)),N.real(i(ii),j(ij),k(ik)));
+        }
+    }
 
 
 } //TEST_CASE("ITensor")

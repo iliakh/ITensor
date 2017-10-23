@@ -21,37 +21,34 @@ class DMRGObserver : public Observer
     {
     public:
     
-    DMRGObserver(const MPSt<Tensor>& psi, 
-                 const Args& args = Global::args());
+    DMRGObserver(MPSt<Tensor> const& psi, 
+                 Args const& args = Args::global());
 
     virtual ~DMRGObserver() { }
 
     void virtual
-    measure(const Args& args = Global::args());
+    measure(Args const& args = Args::global());
 
     void virtual
-    measure(Vector& te, Vector& en, const Args& args = Global::args());
+    measure(Vector& te, Vector& en, Args const& args = Args::global());
 
     bool virtual
-    checkDone(const Args& args = Global::args());
+    checkDone(Args const& args = Args::global());
 
     void virtual
-    lastSpectrum(const Spectrum& spec) { last_spec_ = spec; }
+    lastSpectrum(Spectrum const& spec) { last_spec_ = spec; }
 
-    const MPSt<Tensor>& 
+    MPSt<Tensor> const& 
     psi() const { return psi_; }
     
-    const Spectrum&
+    Spectrum const&
     spectrum() const { return last_spec_; }
 
     private:
 
     /////////////
-    //
-    // Data Members
 
-    const MPSt<Tensor>& psi_;
-
+    MPSt<Tensor> const& psi_;
     Real energy_errgoal; //Stop DMRG once energy has converged to this precision
     bool printeigs;      //Print slowest decaying eigenvalues after every sweep
     int max_eigs;
@@ -60,16 +57,13 @@ class DMRGObserver : public Observer
     Real last_energy_;
     Spectrum last_spec_;
 
-    //SiteSet::DefaultOpsT default_ops_;
-
-    //
     /////////////
 
     }; // class DMRGObserver
 
 template<class Tensor>
 inline DMRGObserver<Tensor>::
-DMRGObserver(const MPSt<Tensor>& psi, const Args& args) 
+DMRGObserver(MPSt<Tensor> const& psi, Args const& args) 
     : 
     psi_(psi),
     energy_errgoal(args.getReal("EnergyErrgoal",-1)), 
@@ -84,7 +78,7 @@ DMRGObserver(const MPSt<Tensor>& psi, const Args& args)
 
 template<class Tensor>
 void inline DMRGObserver<Tensor>::
-measure(const Args& args)
+measure(Args const& args)
     {
         auto N = psi_.N();
         auto b = args.getInt("AtBond",1);
@@ -155,7 +149,7 @@ measure(const Args& args)
 
 template<class Tensor>
 void inline DMRGObserver<Tensor>::
-measure(Vector& te, Vector& en, const Args& args)
+measure(Vector& te, Vector& en, Args const& args)
     {
     auto N = psi_.N();
     auto b = args.getInt("AtBond",1);
@@ -239,7 +233,7 @@ measure(Vector& te, Vector& en, const Args& args)
 
 template<class Tensor>
 bool inline DMRGObserver<Tensor>::
-checkDone(const Args& args)
+checkDone(Args const& args)
     {
     const int sw = args.getInt("Sweep",0);
     const Real energy = args.getReal("Energy",0);

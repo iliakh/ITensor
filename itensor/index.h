@@ -17,7 +17,8 @@ class IndexVal;
 namespace detail {
     struct RandomID
         {
-        using result_type = std::mt19937::result_type;
+        using rng_type = std::mt19937_64;
+        using result_type = typename rng_type::result_type;
 
         RandomID()
             : rng(std::time(NULL) + getpid())
@@ -27,7 +28,7 @@ namespace detail {
         operator()() { return rng(); }
 
         private:
-        std::mt19937 rng;
+        rng_type rng;
         };
 
     struct SequentialID
@@ -279,6 +280,11 @@ IndexVal inline
 mapprime(IndexVal I, int plevold, int plevnew, IndexType type = All)
     { I.mapprime(plevold,plevnew,type); return I; }
 
+//Make a new index with same properties as I,
+//but a different id number (will not compare equal)
+//and primelevel zero (or specified value)
+Index
+sim(Index const& I, int plev = 0);
 
 //Returns a string version of this Index's bond dimension.
 std::string

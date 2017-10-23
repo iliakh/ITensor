@@ -72,14 +72,6 @@ class ITensorT
     explicit
     ITensorT(Cplx val);
 
-    //Construct rank n tensor, all
-    //elements set to zero except the single
-    //entry specified by the IndexVal/IQIndexVal args
-    //template <typename... IVals>
-    //explicit
-    //ITensorT(indexval_type const& iv1, 
-    //         IVals const&... rest);
-
     //Automatic conversion IQTensor -> ITensor
     operator ITensor() const;
 
@@ -109,9 +101,16 @@ class ITensorT
     //Set element at location given by collection
     //of IndexVals or IQIndexVals. Will not switch storage
     //from Real to Complex unless val.imag()!=0 
-    template<typename... VArgs>
+    template<typename IV, typename... VArgs>
+    auto
+    set(IV const& iv1, VArgs&&... ivs)
+        -> stdx::if_compiles_return<void,decltype(iv1.index),decltype(iv1.val)>;
+
     void
-    set(VArgs&&... vargs);
+    set(Cplx val);
+
+    void
+    set(std::vector<indexval_type> const& ivs, Cplx val);
 
     //
     // Index Prime Level Methods
@@ -141,6 +140,11 @@ class ITensorT
     ITensorT& 
     mapprime(VarArgs&&... vargs)
         { itensor::mapprime(is_,std::forward<VarArgs>(vargs)...); return *this; }
+
+    template<typename... VarArgs>
+    ITensorT& 
+    sim(VarArgs&&... vargs)
+        { itensor::sim(is_,std::forward<VarArgs>(vargs)...); return *this; }
 
     //
     // Element Transformation Methods
@@ -224,14 +228,24 @@ class ITensorT
     operator/=(Cplx z) { return operator*=(1./z); }
 
     //Negation
-    ITensorT&
-    operator-() { scale_.negate(); return *this; }
+    ITensorT
+    operator-();
 
     //Non-contracting product
     //All matching Index pairs automatically merged
     //Ciik = Aij * Bjk
     ITensorT&
     operator/=(ITensorT const& other);
+
+    //
+    // Read from and write to streams
+    //
+
+    void
+    read(std::istream& s);
+
+    void
+    write(std::ostream& s) const;
 
 
     //
@@ -277,19 +291,6 @@ class ITensorT
     void
     swap(ITensorT & other);
 
-    //
-    // Deprecated methods for backwards compatibility
-    // 
-
-    //Real
-    //norm() const;
-
-    //const indexset_type&
-    //indices() const { return is_; }
-
-    //void
-    //randomize();
-
     }; // class ITensorT
 
 //
@@ -327,6 +328,11 @@ template<typename IndexT, typename... VarArgs>
 ITensorT<IndexT>
 mapprime(ITensorT<IndexT> A, 
          VarArgs&&... vargs);
+
+template<typename IndexT, typename... VarArgs>
+ITensorT<IndexT>
+sim(ITensorT<IndexT> A, 
+    VarArgs&&... vargs);
 
 template<typename IndexT>
 bool
@@ -390,6 +396,10 @@ template<typename I>
 bool
 isComplex(ITensorT<I> const& T);
 
+template<typename I>
+bool
+isReal(ITensorT<I> const& T);
+
 //return number of indices of T
 //(same as order)
 template<typename I>
@@ -434,13 +444,6 @@ template<typename I>
 Cplx
 sumelsC(ITensorT<I> const& t);
 
-template<typename I>
-void
-read(std::istream& s, ITensorT<I>& T);
-
-template<typename I>
-void
-write(std::ostream& s, ITensorT<I> const& T);
 
 //
 // Given Tensors which represent operator matrices

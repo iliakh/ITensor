@@ -156,6 +156,14 @@ class Args
         return gos_;
         }
 
+    // Read Args object from binary
+    void
+    read(std::istream& s);
+
+    // Write Args object to binary
+    void
+    write(std::ostream& s) const;
+
     private:
 
     void
@@ -223,6 +231,8 @@ class Args
                       
         Val(Name const& name, long ival);
         Val(Name const& name, int ival);
+        Val(Name const& name, unsigned long ival);
+        Val(Name const& name, unsigned int ival);
                       
         Val(Name const& name, Real rval);
 
@@ -253,6 +263,12 @@ class Args
         Type
         type() const { return type_; }
 
+        void
+        read(std::istream& s);
+
+        void
+        write(std::ostream& s) const;
+        
         private:
 
         void

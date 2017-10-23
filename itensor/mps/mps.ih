@@ -187,10 +187,12 @@ applyGate(Tensor const& gate,
           MPSt<Tensor>& psi,
           Args const& args)
     {
+    auto fromleft = args.getBool("Fromleft",true);
     const int c = psi.orthoCenter();
     Tensor AA = psi.A(c) * psi.A(c+1) * gate;
     AA.noprime();
-    psi.svdBond(c,AA,Fromleft,args);
+    if(fromleft) psi.svdBond(c,AA,Fromleft,args);
+    else         psi.svdBond(c,AA,Fromright,args);
     }
 
 template <class Tensor>
@@ -203,7 +205,7 @@ checkOrtho(const MPSt<Tensor>& psi,
 
     IndexT link = (left ? rightLinkInd(psi,i) : leftLinkInd(psi,i));
     Tensor rho = psi.A(i) * dag(prime(psi.A(i),link,4));
-    Tensor Delta = makeKroneckerDelta(link,4);
+    Tensor Delta = delta(link, prime(link, 4));
     Tensor Diff = rho - Delta;
 
     const
@@ -255,18 +257,12 @@ overlapC(MPSType const& psi,
 
     auto l1 = linkInd(psi,1);
     auto L = phi.A(1);
-    if(l1) 
-        {
-        L *= dag(prime(psi.A(1),l1)); 
-        }
-    else   
-        {
-        L *= dag(psi.A(1));
-        }
+    if(l1) L *= dag(prime(psi.A(1),l1)); 
+    else   L *= dag(psi.A(1));
 
+    if(N == 1) return L.cplx();
 
-    auto i = N;
-    for(i = 2; i < N; ++i) 
+    for(decltype(N) i = 2; i < N; ++i) 
         { 
         L = L * phi.A(i) * dag(prime(psi.A(i),Link)); 
         }

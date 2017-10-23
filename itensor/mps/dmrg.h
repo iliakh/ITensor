@@ -392,9 +392,9 @@ DMRGWorker(MPSt<Tensor>& psi,
             args.add("AtBond",b);
             args.add("HalfSweep",ha);
             args.add("Energy",energy); 
+            args.add("Truncerr",spec.truncerr()); 
 
             obs.measure(te,en,args);
-
 
             } //for loop over b
 

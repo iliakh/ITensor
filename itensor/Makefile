@@ -23,6 +23,7 @@ SOURCES+= itdata/qdense.cc
 SOURCES+= itdata/qcombiner.cc 
 SOURCES+= itdata/qdiag.cc
 SOURCES+= itdata/qmixed.cc
+SOURCES+= itdata/scalar.cc 
 ##SOURCES+= itdata/itlazy.cc
 SOURCES+= index.cc 
 SOURCES+= itensor_interface.cc 
@@ -73,14 +74,30 @@ libitensor-g.a: mkdebugdir $(GOBJECTS)
 	@ar r $(ITENSOR_LIBDIR)/libitensor-g.a $(GOBJECTS)
 	@ranlib $(ITENSOR_LIBDIR)/libitensor-g.a
 
+libitensor.$(DYLIB_EXT): $(OBJECTS)
+ifdef ITENSOR_MAKE_DYLIB
+ifeq ($(ITENSOR_MAKE_DYLIB),1)
+	@echo "Building dynamic library $(ITENSOR_LIBDIR)/libitensor.$(DYLIB_EXT)"
+	@$(CCCOM) $(DYLIB_FLAGS) -o $(ITENSOR_LIBDIR)/libitensor.$(DYLIB_EXT) $(OBJECTS) $(BLAS_LAPACK_LIBFLAGS)
+endif
+endif
+
+libitensor-g.$(DYLIB_EXT): mkdebugdir $(GOBJECTS)
+ifdef ITENSOR_MAKE_DYLIB
+ifeq ($(ITENSOR_MAKE_DYLIB),1)
+	@echo "Building dynamic library $(ITENSOR_LIBDIR)/libitensor-g.$(DYLIB_EXT)"
+	@$(CCCOM) $(DYLIB_FLAGS) -o $(ITENSOR_LIBDIR)/libitensor-g.$(DYLIB_EXT) $(GOBJECTS) $(BLAS_LAPACK_LIBFLAGS)
+endif
+endif
+
 touch_all_headers:
 	@touch all.h
 	@touch all_basic.h
 	@touch all_mps.h
 
-build: libitensor.a touch_all_headers
+build: libitensor.a libitensor.$(DYLIB_EXT) touch_all_headers
 
-debug: libitensor-g.a touch_all_headers
+debug: libitensor-g.a libitensor-g.$(DYLIB_EXT) touch_all_headers
 
 mkdebugdir:
 	@mkdir -p .debug_objs
@@ -133,6 +150,9 @@ itdata/qdiag.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 ITDEPHEADERS+= itdata/qmixed.h
 itdata/qmixed.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 .debug_objs/itdata/qmixed.o: $(ITDEPHEADERS) $(GDEPHEADERS)
+ITDEPHEADERS+= itdata/scalar.h
+itdata/scalar.o: $(ITDEPHEADERS) $(GDEPHEADERS)
+.debug_objs/itdata/scalar.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 ITDEPHEADERS+= index.h
 index.o: $(ITDEPHEADERS)
 .debug_objs/index.o: $(ITDEPHEADERS)
@@ -176,3 +196,5 @@ mps/mpo.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 .debug_objs/mps/mpo.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 mps/mpoalgs.o: $(ITDEPHEADERS) $(GDEPHEADERS)
 .debug_objs/mps/mpoalgs.o: $(ITDEPHEADERS) $(GDEPHEADERS)
+mps/autompo.o: $(ITDEPHEADERS) $(GDEPHEADERS)
+.debug_objs/mps/autompo.o: $(ITDEPHEADERS) $(GDEPHEADERS)

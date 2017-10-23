@@ -46,26 +46,6 @@ fileExists(const std::string& fname)
 // be called
 //
 
-////Here we have to use a struct to implement the read(istream,T)
-////function because function templates cannot be partially specialized
-////template<typename T, bool isPod = std::is_pod<T>::value>
-//template<typename T, bool isPod = std::is_pod<T>::value>
-//struct DoRead
-//    {
-//    DoRead(std::istream& s, T& obj)
-//        {
-//        obj.read(s);
-//        }
-//    };
-//template<typename T>
-//struct DoRead<T, true>
-//    {
-//    DoRead(std::istream& s, T& val)
-//        {
-//        s.read((char*) &val, sizeof(val));
-//        }
-//    };
-
 template<typename T>
 auto
 read(std::istream& s, T & val)
@@ -87,59 +67,56 @@ T
 read(std::istream& s, CtrArgs&&... args)
     {
     T t(std::forward<CtrArgs>(args)...);
-    //DoRead<T>(s,t);
     read(s,t);
     return t;
     }
 
-//template<typename T, bool isPod = std::is_pod<T>::value>
-//struct DoWrite
-//    {
-//    DoWrite(std::ostream& s, const T& obj)
+//namespace detail {
+//
+//    template<typename T>
+//    auto
+//    writeImpl(stdx::choice<1>, std::ostream& s, T const& t)
+//        -> stdx::enable_if_t<std::is_pod<T>::value,void>
 //        {
-//        obj.write(s);
+//        s.write((char*) &t, sizeof(t));
 //        }
-//    };
+//    template<typename T>
+//    auto
+//    writeImpl(stdx::choice<2>, std::ostream& s, T const& t)
+//        -> stdx::if_compiles_return<void,decltype(t.write(s))>
+//        {
+//        t.write(s);
+//        }
+//    template<typename T>
+//    void
+//    writeImpl(stdx::choice<3>, std::ostream& s, T const& t)
+//        {
+//        Error("Object does not define .write method");
+//        }
+//}
+//
 //template<typename T>
-//struct DoWrite<T, true>
+//void
+//write(std::ostream& s, T const& val)
 //    {
-//    DoWrite(std::ostream& s, const T& val)
-//        {
-//        s.write((char*) &val, sizeof(val));
-//        }
-//    };
-
-namespace detail {
-
-    template<typename T>
-    auto
-    writeImpl(stdx::choice<1>, std::ostream& s, T const& t)
-        -> stdx::enable_if_t<std::is_pod<T>::value,void>
-        {
-        s.write((char*) &t, sizeof(t));
-        }
-    template<typename T>
-    auto
-    writeImpl(stdx::choice<2>, std::ostream& s, T const& t)
-        -> stdx::if_compiles_return<void,decltype(t.write(s))>
-        {
-        t.write(s);
-        }
-    template<typename T>
-    void
-    writeImpl(stdx::choice<3>, std::ostream& s, T const& t)
-        {
-        Error("Object does not define .write method");
-        }
-}
+//    detail::writeImpl(stdx::select_overload{},s,val);
+//    }
 
 template<typename T>
-void
+auto
 write(std::ostream& s, T const& val)
+    -> stdx::if_compiles_return<void,decltype(val.write(s))>
     {
-    detail::writeImpl(stdx::select_overload{},s,val);
+    val.write(s);
     }
 
+template<typename T>
+auto
+write(std::ostream& s, T const& val)
+    -> stdx::enable_if_t<std::is_pod<T>::value,void>
+    {
+    s.write((char*) &val, sizeof(val));
+    }
 
 void inline
 write(std::ostream& s, const std::string& str)
@@ -177,6 +154,20 @@ write(std::ostream& s, const Cplx& z)
     }
 
 template<typename T>
+void
+read(std::istream& s, std::vector<T> & v);
+template<typename T>
+void
+write(std::ostream& s, std::vector<T> const& v);
+
+template<typename T, size_t N>
+void
+read(std::istream& s, std::array<T,N> & a);
+template<typename T, size_t N>
+void
+write(std::ostream& s, std::array<T,N> const& a);
+
+template<typename T>
 auto
 read(std::istream& s, std::vector<T> & v)
     -> stdx::if_compiles_return<void,decltype(itensor::read(s,v[0]))>
@@ -209,6 +200,36 @@ write(std::ostream& s, std::vector<T> const& v)
     else
         {
         for(auto& el : v) itensor::write(s,el);
+        }
+    }
+
+template<typename T, size_t N>
+auto
+read(std::istream& s, std::array<T,N> & a)
+    -> stdx::if_compiles_return<void,decltype(itensor::read(s,a[0]))>
+    {
+    if(std::is_pod<T>::value)
+        {
+        s.read((char*)a.data(), sizeof(T)*N);
+        }
+    else
+        {
+        for(auto& el : a) itensor::read(s,el);
+        }
+    }
+
+template<typename T, size_t N>
+auto
+write(std::ostream& s, std::array<T,N> const& a)
+    -> stdx::if_compiles_return<void,decltype(itensor::write(s,a[0]))>
+    {
+    if(std::is_pod<T>::value)
+        {
+        s.write((char*)a.data(), sizeof(T)*N);
+        }
+    else
+        {
+        for(auto& el : a) itensor::write(s,el);
         }
     }
 

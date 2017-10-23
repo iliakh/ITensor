@@ -26,9 +26,13 @@ ITensorT(Cplx val)
   : scale_(1.)
     { 
     if(val.imag() == 0)
-        store_ = newITData<DenseReal>(1,val.real());
+        {
+        store_ = newITData<ScalarReal>(val.real());
+        }
     else
-        store_ = newITData<DenseCplx>(1,val);
+        {
+        store_ = newITData<ScalarCplx>(val);
+        }
     //if(val.imag() == 0)
     //    store_ = newITData<Diag<Real>>(1,val.real());
     //else
@@ -155,6 +159,28 @@ combiner(std::vector<Index> inds, Args const& args)
     auto itype = getIndexType(args,"IndexType",Link);
     inds.front() = Index(cname,rm,itype);
     return ITensor(IndexSet(std::move(inds)),Combiner{});
+    }
+
+struct IsCombiner
+    {
+    template<typename D>
+    bool 
+    operator()(D const& d) { return false; }
+    bool
+    operator()(Combiner const& d) { return true; }
+    };
+
+Index
+combinedIndex(ITensor const& C)
+    {
+#ifdef DEBUG
+    auto iscombiner = applyFunc(IsCombiner{},C.store());
+    if(not iscombiner)
+        {
+        throw ITError("Called combinedIndex on ITensor that is not a combiner");
+        }
+#endif
+    return C.inds().front();
     }
 
 } //namespace itensor

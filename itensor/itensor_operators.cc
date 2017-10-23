@@ -66,7 +66,8 @@ checkArrows(IQIndexSet const& is1,
                 println("----------------------------------------");
                 println("IQIndexSet 2 = \n",is2);
                 println("----------------------------------------");
-                printfln("Mismatched IQIndex %s",I1);
+                printfln("Mismatched IQIndex from set 1 %s",I1);
+                printfln("Mismatched IQIndex from set 2 %s",I2);
                 Error("Mismatched IQIndex arrows");
                 }
             }
@@ -197,14 +198,16 @@ ITensorT<IndexT>& ITensorT<IndexT>::
 operator+=(ITensorT const& R)
     {
     auto& L = *this;
-    if(!L) { return (L=R); }
+    if(!L) { return (L=R); } //special case when this (L) is not initialized
     if(!R) Error("Right-hand-side of ITensor += is default constructed");
     if(&L == &R) return operator*=(2.);
+
+    if(this->r() != R.r()) Error("ITensorT::operator+=: different number of indices");
 
     using permutation = typename PlusEQ<index_type>::permutation;
 
     auto P = permutation(L.inds().size());
-#ifdef DEBUG
+
     try {
         calcPerm(R.inds(),L.inds(),P);
         }
@@ -214,9 +217,6 @@ operator+=(ITensorT const& R)
         println("R = ",R);
         Error("ITensorT::operator+=: different index structure");
         }
-#else
-    calcPerm(R.inds(),L.inds(),P);
-#endif
 
     if(Global::checkArrows()) 
         {

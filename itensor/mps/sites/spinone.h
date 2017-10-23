@@ -1,6 +1,6 @@
 //
 // Distributed under the ITensor Library License, Version 1.2
-//    (See accompanying LICENSE file.)
+// (See accompanying LICENSE file.)
 //
 #ifndef __ITENSOR_SPINONE_H
 #define __ITENSOR_SPINONE_H
@@ -16,6 +16,8 @@ class SpinOne : public SiteSet
 
     SpinOne(int N, 
             Args const& args = Args::global());
+
+    SpinOne(std::vector<IQIndex> const& inds);
 
     void
     read(std::istream& s);
@@ -93,7 +95,7 @@ class SpinOneSite
             //mixedIQTensor call needed here
             //because as an IQTensor, Op would
             //not have a well defined QN flux
-            Op = mixedIQTensor(s,sP);
+            Op = mixedIQTensor(dag(s),sP);
             Op.set(Up,Z0P,ISqrt2); 
             Op.set(Z0,UpP,ISqrt2);
             Op.set(Z0,DnP,ISqrt2); 
@@ -105,11 +107,11 @@ class SpinOneSite
             //mixedIQTensor call needed here
             //because as an IQTensor, Op would
             //not have a well defined QN flux
-            Op = mixedIQTensor(s,sP);
-            Op.set(Up,Z0P,+ISqrt2); 
-            Op.set(Z0,UpP,-ISqrt2);
-            Op.set(Z0,DnP,+ISqrt2); 
-            Op.set(Dn,Z0P,-ISqrt2);
+            Op = mixedIQTensor(dag(s),sP);
+            Op.set(Up,Z0P,-ISqrt2); 
+            Op.set(Z0,UpP,+ISqrt2);
+            Op.set(Z0,DnP,-ISqrt2); 
+            Op.set(Dn,Z0P,+ISqrt2);
             }
         else
         if(opname == "Sy")
@@ -117,11 +119,11 @@ class SpinOneSite
             //mixedIQTensor call needed here
             //because as an IQTensor, Op would
             //not have a well defined QN flux
-            Op = mixedIQTensor(s,sP);
-            Op.set(Up,Z0P,-ISqrt2*1_i); 
-            Op.set(Z0,UpP,+ISqrt2*1_i);
-            Op.set(Z0,DnP,-ISqrt2*1_i); 
-            Op.set(Dn,Z0P,+ISqrt2*1_i);
+            Op = mixedIQTensor(dag(s),sP);
+            Op.set(Up,Z0P,+ISqrt2*1_i); 
+            Op.set(Z0,UpP,-ISqrt2*1_i);
+            Op.set(Z0,DnP,+ISqrt2*1_i); 
+            Op.set(Dn,Z0P,-ISqrt2*1_i);
             }
         else
         if(opname == "Sp" || opname == "S+")
@@ -144,6 +146,7 @@ class SpinOneSite
         else
         if(opname == "Sx2")
             {
+            Op = mixedIQTensor(dag(s),sP);
             Op.set(Up,UpP,0.5); 
             Op.set(Up,DnP,0.5);
             Op.set(Z0,Z0P,1.0);
@@ -153,6 +156,7 @@ class SpinOneSite
         else
         if(opname == "Sy2")
             {
+            Op = mixedIQTensor(dag(s),sP);
             Op.set(Up,UpP,+0.5); 
             Op.set(Up,DnP,-0.5);
             Op.set(Z0,Z0P,1);
@@ -178,6 +182,7 @@ class SpinOneSite
         if(opname == "XUp")
             {
             //m = +1 state along x axis
+            Op = mixedIQTensor(dag(s),sP);
             Op = IQTensor(s);
             Op.set(Up,0.5);
             Op.set(Z0,ISqrt2);
@@ -187,6 +192,7 @@ class SpinOneSite
         if(opname == "XZ0")
             {
             //m = 0 state along x axis
+            Op = mixedIQTensor(dag(s),sP);
             Op = IQTensor(s);
             Op.set(Up,+ISqrt2);
             Op.set(Dn,-ISqrt2);
@@ -195,6 +201,7 @@ class SpinOneSite
         if(opname == "XDn")
             {
             //m = -1 state along x axis
+            Op = mixedIQTensor(dag(s),sP);
             Op = IQTensor(s);
             Op.set(Up,0.5);
             Op.set(Z0,-ISqrt2);
@@ -211,12 +218,30 @@ class SpinOneSite
             }
         else
             {
-            Error("Operator " + opname + " name not recognized");
+            Error("Operator \"" + opname + "\" name not recognized");
             }
 
         return Op;
         }
     };
+
+inline SpinOne::
+SpinOne(std::vector<IQIndex> const& inds)
+    {
+    int N = inds.size();
+    auto sites = SiteStore(N);
+    for(int j = 1, i = 0; j <= N; ++j, ++i)
+        {
+        auto& Ii = inds.at(i);
+        if(Ii.m() != 3)
+            {
+            printfln("IQIndex at entry %d = %s",i,Ii);
+            Error("Only S=1 IQIndices allowed in SpinOne(vector<IQIndex>) constructor");
+            }
+        sites.set(j,SpinOneSite(Ii));
+        }
+    SiteSet::init(std::move(sites));
+    }
 
 inline SpinOne::
 SpinOne(int N, 
