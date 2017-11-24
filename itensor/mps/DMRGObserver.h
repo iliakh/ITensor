@@ -220,7 +220,7 @@ measure(Vector& te, Vector& en, Args const& args)
             writeToFile(std::string(std::to_string(sw)) + "_state",psi_);
         }
         if ((en(sw-1) < 2*en(sw-2)) && (sw > 1))
-            throw std::runtime_error("DMRGObserver::measure energy drop ratio " + en(sw-1)/en(sw-2));
+            throw std::runtime_error("DMRGObserver::measure energy drop");
 
         }
 
