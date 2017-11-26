@@ -219,9 +219,8 @@ measure(Vector& te, Vector& en, Args const& args)
             println("Saving state");
             writeToFile(std::string(std::to_string(sw)) + "_state",psi_);
         }
-        if ((en(sw-1) < 2*en(sw-2)) && (sw > 1))
+        if ((en(sw-1) < 2*en(sw-2)) && (en(sw-1) < 0) && (en(sw-2) < 0) && (sw > 1))
             throw std::runtime_error("DMRGObserver::measure energy drop");
-
         }
 
         // Saving files after each sweep
