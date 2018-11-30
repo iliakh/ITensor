@@ -35,6 +35,24 @@ dmrg(MPSt<Tensor>& psi,
     }
 
 //
+//DMRG with an MPO and truncation error and energy vectors
+//
+    template <class Tensor>
+    Real
+    dmrg(MPSt<Tensor>& psi,
+         const MPOt<Tensor>& H,
+         const Sweeps& sweeps,
+         Vector& te,
+         Vector& en,
+         const Args& args = Global::args())
+    {
+        LocalMPO<Tensor> PH(H,args);
+        Real energy = DMRGWorker(psi,PH,sweeps,te,en,args);
+        return energy;
+    }
+
+
+//
 //DMRG with an MPO and custom DMRGObserver
 //
 template <class Tensor>
@@ -167,8 +185,6 @@ dmrg(MPSt<Tensor>& psi,
     return energy;
     }
 
-
-
 //
 // DMRGWorker
 //
@@ -188,9 +204,125 @@ DMRGWorker(MPSt<Tensor>& psi,
 template <class Tensor, class LocalOpT>
 Real
 DMRGWorker(MPSt<Tensor>& psi,
+               LocalOpT& PH,
+               const Sweeps& sweeps,
+               DMRGObserver<Tensor>& obs,
+               Args args = Global::args())
+    {
+        const bool quiet = args.getBool("Quiet",false);
+        const int debug_level = args.getInt("DebugLevel",(quiet ? 0 : 1));
+
+        const int N = psi.N();
+        Real energy = NAN;
+
+        psi.position(1);
+
+        args.add("DebugLevel",debug_level);
+        args.add("DoNormalize",true);
+
+        for(int sw = 1; sw <= sweeps.nsweep(); ++sw)
+        {
+            args.add("Sweep",sw);
+            args.add("Cutoff",sweeps.cutoff(sw));
+            args.add("Minm",sweeps.minm(sw));
+            args.add("Maxm",sweeps.maxm(sw));
+            args.add("Noise",sweeps.noise(sw));
+            args.add("MaxIter",sweeps.niter(sw));
+
+            if(!PH.doWrite()
+               && args.defined("WriteM")
+               && sweeps.maxm(sw) >= args.getInt("WriteM"))
+            {
+                if(!quiet)
+                {
+                    println("\nTurning on write to disk, write_dir = ",
+                            args.getString("WriteDir","./"));
+                }
+
+                psi.doWrite(true);
+                PH.doWrite(true);
+            }
+
+            for(int b = 1, ha = 1; ha <= 2; sweepnext(b,ha,N))
+            {
+                if(!quiet)
+                {
+                    printfln("Sweep=%d, HS=%d, Bond=(%d,%d)",sw,ha,b,(b+1));
+                }
+
+                TIMER_START(49)
+                PH.position(b,psi);
+                TIMER_STOP(49)
+
+                START_TIMER(50)
+                auto phi = psi.A(b)*psi.A(b+1);
+                STOP_TIMER(50)
+
+                START_TIMER(51)
+                energy = davidson(PH,phi,args);
+                STOP_TIMER(51)
+
+                START_TIMER(52)
+                auto spec = psi.svdBond(b,phi,(ha==1?Fromleft:Fromright),PH,args);
+                STOP_TIMER(52)
+
+
+                if(!quiet)
+                {
+                    printfln("    Truncated to Cutoff=%.1E, Min_m=%d, Max_m=%d",
+                             sweeps.cutoff(sw),
+                             sweeps.minm(sw),
+                             sweeps.maxm(sw) );
+                    printfln("    Trunc. err=%.1E, States kept: %s",
+                             spec.truncerr(),
+                             showm(linkInd(psi,b)) );
+                }
+
+                obs.lastSpectrum(spec);
+
+                args.add("AtBond",b);
+                args.add("HalfSweep",ha);
+                args.add("Energy",energy);
+
+                obs.measure(args);
+
+            } //for loop over b
+
+            if(obs.checkDone(args)) break;
+
+        } //for loop over sw
+
+        psi.normalize();
+
+        return energy;
+    }
+
+//
+// DMRGWorker - Modified with TE and EN vectors
+//
+
+template <class Tensor, class LocalOpT>
+Real inline
+DMRGWorker(MPSt<Tensor>& psi,
+           LocalOpT& PH,
+           const Sweeps& sweeps,
+           Vector& te,
+           Vector& en,
+           const Args& args = Global::args())
+    {
+        DMRGObserver<Tensor> obs(psi,args);
+        Real energy = DMRGWorker(psi,PH,sweeps,obs,te,en,args);
+        return energy;
+    }
+
+template <class Tensor, class LocalOpT>
+Real
+DMRGWorker(MPSt<Tensor>& psi,
            LocalOpT& PH,
            const Sweeps& sweeps,
            DMRGObserver<Tensor>& obs,
+           Vector& te,
+           Vector& en,
            Args args = Global::args())
     {
     const bool quiet = args.getBool("Quiet",false);
@@ -263,7 +395,7 @@ DMRGWorker(MPSt<Tensor>& psi,
             args.add("Energy",energy); 
             args.add("Truncerr",spec.truncerr()); 
 
-            obs.measure(args);
+            obs.measure(te,en,args);
 
             } //for loop over b
 
