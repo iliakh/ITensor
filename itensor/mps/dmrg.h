@@ -357,7 +357,7 @@ DMRGWorker(MPSt<Tensor>& psi,
                         args.getString("WriteDir","./"));
                 }
 
-            //psi.doWrite(true);
+            psi.doWrite(true);
             PH.doWrite(true,args);
             }
 
@@ -368,32 +368,40 @@ DMRGWorker(MPSt<Tensor>& psi,
                 printfln("Sweep=%d, HS=%d, Bond=%d/%d",sw,ha,b,(N-1));
                 }
 
-            PH.position(b,psi);
+                TIMER_START(49)
+                PH.position(b,psi);
+                TIMER_STOP(49)
 
-            auto phi = psi.A(b)*psi.A(b+1);
+                START_TIMER(50)
+                auto phi = psi.A(b)*psi.A(b+1);
+                STOP_TIMER(50)
 
-            energy = davidson(PH,phi,args);
-            
-            auto spec = psi.svdBond(b,phi,(ha==1?Fromleft:Fromright),PH,args);
+                START_TIMER(51)
+                energy = davidson(PH,phi,args);
+                STOP_TIMER(51)
+
+                START_TIMER(52)
+                auto spec = psi.svdBond(b,phi,(ha==1?Fromleft:Fromright),PH,args);
+                STOP_TIMER(52)
 
 
-            if(!quiet)
-                { 
-                printfln("    Truncated to Cutoff=%.1E, Min_m=%d, Max_m=%d",
-                          sweeps.cutoff(sw),
-                          sweeps.minm(sw), 
-                          sweeps.maxm(sw) );
-                printfln("    Trunc. err=%.1E, States kept: %s",
-                         spec.truncerr(),
-                         showm(linkInd(psi,b)) );
+                if(!quiet)
+                {
+                    printfln("    Truncated to Cutoff=%.1E, Min_m=%d, Max_m=%d",
+                             sweeps.cutoff(sw),
+                             sweeps.minm(sw),
+                             sweeps.maxm(sw) );
+                    printfln("    Trunc. err=%.1E, States kept: %s",
+                             spec.truncerr(),
+                             showm(linkInd(psi,b)) );
                 }
 
-            obs.lastSpectrum(spec);
+                obs.lastSpectrum(spec);
 
-            args.add("AtBond",b);
-            args.add("HalfSweep",ha);
-            args.add("Energy",energy); 
-            args.add("Truncerr",spec.truncerr()); 
+                args.add("AtBond",b);
+                args.add("HalfSweep",ha);
+                args.add("Energy",energy);
+
 
             obs.measure(te,en,args);
 
