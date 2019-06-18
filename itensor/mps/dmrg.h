@@ -160,7 +160,22 @@ dmrg(MPSt<Tensor>& psi,
     return energy;
     }
 
-//
+//same as above, with TE and EN vectors
+template <class Tensor>
+Real
+dmrg(MPSt<Tensor>& psi, 
+     const MPOt<Tensor>& H, 
+     const std::vector<MPSt<Tensor> >& psis, 
+     const Sweeps& sweeps, 
+     Vector& te,
+     Vector& en,
+     const Args& args = Global::args())
+    {
+    LocalMPO_MPS<Tensor> PH(H,psis,args);
+    Real energy = DMRGWorker(psi,PH,sweeps,te,en,args);
+    return energy;
+    }
+/
 //DMRG with a single Hamiltonian MPO, 
 //a set of MPS to orthogonalize against, 
 //and a custom DMRGObserver.
