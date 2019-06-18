@@ -36,13 +36,15 @@ class ITensorT
     using index_type = index_type_;
     using indexval_type = typename index_type::indexval_type;
     using indexset_type = IndexSetT<index_type>;
+    using range_type = RangeT<index_type>;
+    using size_type = typename range_type::size_type;
     using storage_ptr = PData;
     using const_storage_ptr = CPData;
     using scale_type = LogNum;
     private:
     indexset_type is_;
     mutable storage_ptr store_;
-    scale_type scale_;
+    IF_USESCALE(scale_type scale_;)
     public:
 
     //
@@ -87,6 +89,10 @@ class ITensorT
     indexset_type const&
     inds() const { return is_; }
 
+    //Access index
+    index_type const&
+    index(size_type I) const { return is_.index(I); }
+
     //evaluates to false if default constructed
     explicit operator bool() const { return bool(is_) || bool(store_); }
 
@@ -94,9 +100,18 @@ class ITensorT
     Real
     real(IndexVals&&... ivs) const;
 
-    template <typename... IndexVals>
+    template <typename IV, typename... IVs>
+    auto
+    cplx(IV const& iv1, IVs&&... ivs) const
+         -> stdx::if_compiles_return<Cplx,decltype(iv1.index),decltype(iv1.val)>;
+
+    template <typename Int, typename... Ints>
+    auto
+    cplx(Int iv1, Ints... ivs) const
+        -> stdx::enable_if_t<std::is_integral<Int>::value && stdx::and_<std::is_integral<Ints>...>::value,Cplx>;
+
     Cplx
-    cplx(IndexVals&&... ivs) const;
+    cplx() const;
 
     //Set element at location given by collection
     //of IndexVals or IQIndexVals. Will not switch storage
@@ -106,11 +121,19 @@ class ITensorT
     set(IV const& iv1, VArgs&&... ivs)
         -> stdx::if_compiles_return<void,decltype(iv1.index),decltype(iv1.val)>;
 
+    template<typename Int, typename... VArgs>
+    auto
+    set(Int iv1, VArgs&&... ivs)
+        -> stdx::enable_if_t<std::is_integral<Int>::value,void>;
+
     void
     set(Cplx val);
 
     void
     set(std::vector<indexval_type> const& ivs, Cplx val);
+
+    void
+    set(std::vector<int> const& ivs, Cplx val);
 
     //
     // Index Prime Level Methods
@@ -125,6 +148,11 @@ class ITensorT
     ITensorT& 
     prime(VarArgs&&... vargs)
         { itensor::prime(is_,std::forward<VarArgs>(vargs)...); return *this; }
+
+    template<typename... VarArgs>
+    ITensorT& 
+    primeLevel(VarArgs&&... vargs)
+        { itensor::primeLevel(is_,std::forward<VarArgs>(vargs)...); return *this; }
 
     template<typename... VarArgs>
     ITensorT&
@@ -211,6 +239,7 @@ class ITensorT
     ITensorT& 
     operator-=(ITensorT const& other);
 
+#ifdef USESCALE
     //Multiplication by real scalar
     ITensorT&
     operator*=(Real fac) { scale_ *= fac; return *this; }
@@ -218,6 +247,15 @@ class ITensorT
     //Division by real scalar
     ITensorT&
     operator/=(Real fac) { scale_ /= fac; return *this; }
+#else
+    //Multiplication by real scalar
+    ITensorT&
+    operator*=(Real fac);
+
+    //Division by real scalar
+    ITensorT&
+    operator/=(Real fac);
+#endif
 
     //Multiplication by complex scalar
     ITensorT&
@@ -229,13 +267,34 @@ class ITensorT
 
     //Negation
     ITensorT
-    operator-();
+    operator-() const;
 
     //Non-contracting product
     //All matching Index pairs automatically merged
     //Ciik = Aij * Bjk
     ITensorT&
     operator/=(ITensorT const& other);
+
+    //template<typename... Indxs>
+    //ITensorT&
+    //order(index_type const& ind1, Indxs const&... inds);
+
+    template<typename... Indxs>
+    auto 
+    order(index_type const& ind1, Indxs const&... inds)
+    -> stdx::enable_if_t<not stdx::and_<std::is_same<index_type, Indxs>...>::value,ITensorT&>;
+
+    template <typename... Indxs>
+    auto 
+    order(index_type const& ind1, Indxs const&... inds)
+        -> stdx::enable_if_t<stdx::and_<std::is_same<index_type, Indxs>...>::value,ITensorT&>;
+
+    template<typename... Indxs>
+    ITensorT&
+    order(std::string const& dots, Indxs const&... inds);
+
+    ITensorT&
+    order(indexset_type const& iset);
 
     //
     // Read from and write to streams
@@ -268,14 +327,6 @@ class ITensorT
     explicit
     ITensorT(indexset_type const& is);
 
-    //Scale factor, used internally for efficient scalar ops.
-    //Mostly for developer use; not necessary to explicitly involve
-    //scale factors in user-level ITensor operations.
-    scale_type const&
-    scale() const { return scale_; }
-
-    scale_type&
-    scale() { return scale_; }
 
     storage_ptr&
     store() { return store_; }
@@ -283,13 +334,40 @@ class ITensorT
     const_storage_ptr
     store() const { return const_storage_ptr(store_); }
 
-    void 
-    scaleTo(scale_type const& newscale);
-    void 
-    scaleTo(Real newscale);
 
     void
     swap(ITensorT & other);
+    
+    
+#ifdef USESCALE
+
+    scale_type const&
+    scale() const { return scale_; }
+
+    scale_type&
+    scale() { return scale_; }
+    
+    void 
+    scaleTo(scale_type const& newscale);
+    
+    void 
+    scaleTo(Real newscale);
+
+#else //not using scale, default case:
+
+    scale_type
+    scale() const { return scale_type(1.); }
+
+    //scale_type&
+    //scale() { return scale_; }
+    
+    void 
+    scaleTo(scale_type const& newscale) { }
+    
+    void 
+    scaleTo(Real newscale) { }
+
+#endif
 
     }; // class ITensorT
 
@@ -313,6 +391,11 @@ template<typename IndexT, typename... VarArgs>
 ITensorT<IndexT>
 prime(ITensorT<IndexT> A, 
       VarArgs&&... vargs);
+
+template<typename IndexT, typename... VarArgs>
+ITensorT<IndexT>
+primeLevel(ITensorT<IndexT> A, 
+           VarArgs&&... vargs);
 
 template<typename IndexT, typename... VarArgs>
 ITensorT<IndexT>
@@ -360,9 +443,18 @@ commonIndex(const ITensorT<IndexT>& A,
 //which is NOT shared by tensor B
 template<typename IndexT> 
 IndexT
-uniqueIndex(const ITensorT<IndexT>& A, 
-            const ITensorT<IndexT>& B, 
+uniqueIndex(ITensorT<IndexT> const& A, 
+            ITensorT<IndexT> const& B, 
             IndexType t);
+
+//Find index of tensor A (of optional type t) 
+//which is NOT shared by the tensors "Ts"
+template<typename IndexT, typename... Tensors> 
+IndexT
+uniqueIndex(ITensorT<IndexT> const& A, 
+            ITensorT<IndexT> const& T1,
+            ITensorT<IndexT> const& T2,
+            Tensors const&... Ts);
 
 //
 //Return copy of a tensor with primeLevels plev1 and plev2 swapped
@@ -410,7 +502,7 @@ rank(ITensorT<I> const& T);
 //(same as rank)
 template<typename I>
 long
-order(ITensorT<I> const& T);
+ord(ITensorT<I> const& T);
 
 //Compute the norm of an ITensor.
 //Thinking of elements as a vector, equivalent to sqrt(v*v).
@@ -444,6 +536,12 @@ template<typename I>
 Cplx
 sumelsC(ITensorT<I> const& t);
 
+template<typename IndexT, typename... Inds>
+ITensorT<IndexT>
+reindex(ITensorT<IndexT> const& cT, 
+        IndexT o1, IndexT n1, 
+        Inds... inds);
+
 
 //
 // Given Tensors which represent operator matrices
@@ -473,7 +571,7 @@ operator<<(std::ostream & s, IQTensor const& T);
 
 } //namespace itensor
 
-#include "itensor_interface.ih"
+#include "itensor_interface_impl.h"
 
 
 #endif

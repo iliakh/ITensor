@@ -80,7 +80,7 @@ svdImpl(ITensor const& A,
     if(do_truncate)
         {
         tie(truncerr,docut) = truncate(probs,maxm,minm,cutoff,
-                                       absoluteCutoff,doRelCutoff);
+                                       absoluteCutoff,doRelCutoff,args);
         m = probs.size();
         resize(DD,m);
         reduceCols(UU,m);
@@ -105,7 +105,6 @@ svdImpl(ITensor const& A,
 
     //Fix sign to make sure D has positive elements
     Real signfix = (A.scale().sign() == -1) ? -1 : +1;
-
     D = ITensor({uL,vL},
                 Diag<Real>{DD.begin(),DD.end()},
                 A.scale()*signfix);
@@ -117,6 +116,7 @@ svdImpl(ITensor const& A,
     //density matrix eigs
     for(auto& el : DD) el = sqr(el);
 
+#ifdef USESCALE
     if(A.scale().isFiniteReal()) 
         {
         DD *= sqr(A.scale().real0());
@@ -125,6 +125,7 @@ svdImpl(ITensor const& A,
         {
         println("Warning: scale not finite real after svd");
         }
+#endif
 
     return Spectrum(move(DD),{"Truncerr",truncerr});
     }
@@ -224,7 +225,7 @@ svdImpl(IQTensor A,
     if(do_truncate)
         {
         tie(truncerr,docut) = truncate(probs,maxm,minm,cutoff,
-                                       absoluteCutoff,doRelCutoff);
+                                       absoluteCutoff,doRelCutoff,args);
         m = probs.size();
         alleigqn.resize(m);
         }
@@ -279,7 +280,11 @@ svdImpl(IQTensor A,
         Liq.emplace_back(Index("l",this_m,litype),uI.qn(1+B.i1));
         Riq.emplace_back(Index("r",this_m,ritype),vI.qn(1+B.i2));
         }
-    
+
+#ifdef DEBUG
+    if(Liq.empty() || Riq.empty()) throw std::runtime_error("IQIndex of S after SVD is empty");
+#endif
+
     auto L = IQIndex(lname,move(Liq),uI.dir());
     auto R = IQIndex(rname,move(Riq),vI.dir());
 
@@ -354,11 +359,10 @@ svdImpl(IQTensor A,
 
     //Fix sign to make sure D has positive elements
     Real signfix = (A.scale().sign() == -1) ? -1. : +1.;
-
     U = IQTensor(Uis,move(Ustore));
     D = IQTensor(Dis,move(Dstore),A.scale()*signfix);
     V = IQTensor(Vis,move(Vstore),LogNum{signfix});
-
+    
     //Originally eigs were found without including scale
     //so put the scale back in
     if(A.scale().isFiniteReal())

@@ -2,8 +2,8 @@
 // Distributed under the ITensor Library License, Version 1.2
 //    (See accompanying LICENSE file.)
 //
-#ifndef __ITENSOR_EIGENSOLVER_H
-#define __ITENSOR_EIGENSOLVER_H
+#ifndef __ITENSOR_ITERATIVESOLVERS_H
+#define __ITENSOR_ITERATIVESOLVERS_H
 #include "itensor/util/range.h"
 #include "itensor/iqtensor.h"
 #include "itensor/tensor/algs.h"
@@ -39,6 +39,18 @@ davidson(BigMatrixT const& A,
          Args const& args = Args::global());
 
 //
+// Use GMRES to iteratively solve A x = b for x.
+// (BigMatrixT objects must implement the methods product and size.)
+// Initial guess x is overwritten with the output.
+//
+template<typename BigMatrixT, typename Tensor>
+void
+gmres(BigMatrixT const& A,
+      Tensor const& b,
+      Tensor& x,
+      Args const& args = Args::global());
+
+//
 //
 // Implementations
 //
@@ -64,10 +76,10 @@ davidson(BigMatrixT const& A,
          std::vector<Tensor>& phi,
          Args const& args)
     {
-    auto maxiter_ = args.getInt("MaxIter",2);
-    auto errgoal_ = args.getReal("ErrGoal",1E-4);
+    auto maxiter_ = args.getSizeT("MaxIter",2);
+    auto errgoal_ = args.getReal("ErrGoal",1E-14);
     auto debug_level_ = args.getInt("DebugLevel",-1);
-    auto miniter_ = args.getInt("MinIter",1);
+    auto miniter_ = args.getSizeT("MinIter",1);
 
     Real Approx0 = 1E-12;
 
@@ -85,14 +97,14 @@ davidson(BigMatrixT const& A,
         }
 
     auto maxsize = A.size();
-    auto actual_maxiter = std::min(maxiter_,static_cast<decltype(maxiter_)>(maxsize)-1);
+    auto actual_maxiter = std::min(maxiter_,maxsize-1);
     if(debug_level_ >= 2)
         {
         printfln("maxsize-1 = %d, maxiter = %d, actual_maxiter = %d",
                  (maxsize-1), maxiter_, actual_maxiter);
         }
 
-    if(area(phi.front().inds()) != size_t(maxsize))
+    if(area(phi.front().inds()) != maxsize)
         {
         println("area(phi.front().inds()) = ",area(phi.front().inds()));
         println("A.size() = ",A.size());
@@ -131,10 +143,10 @@ davidson(BigMatrixT const& A,
     if(debug_level_ > 2)
         printfln("Initial Davidson energy = %.10f",initEn);
 
-    size_t t = 0; //which eigenvector we are currently targeting
+    auto t = size_t(0); //which eigenvector we are currently targeting
 
-    int iter = 0;
-    for(int ii = 0; ii <= actual_maxiter; ++ii)
+    auto iter = size_t(0);
+    for(auto ii : range(actual_maxiter+1))
         {
         //Diagonalize dag(V)*A*V
         //and compute the residual q
@@ -166,7 +178,7 @@ davidson(BigMatrixT const& A,
             lambda = D(t);
             phi_t = U(0,t)*V[0];
             q     = U(0,t)*AV[0];
-            for(int k = 1; k <= ii; ++k)
+            for(auto k : range1(ii))
                 {
                 phi_t += U(k,t)*V[k];
                 q     += U(k,t)*AV[k];
@@ -272,12 +284,14 @@ davidson(BigMatrixT const& A,
             for(auto k : range(ni))
                 {
                 Vq[k] = (dag(V[k])*q).cplx();
+                //printfln("pass=%d Vq[%d] = %s",pass,k,Vq[k]);
                 }
             for(auto k : range(ni))
                 {
                 q += (-Vq[k])*V[k];
                 }
             auto qnrm = norm(q);
+            //printfln("pass=%d qnrm=%s",pass,qnrm);
             if(qnrm < 1E-10)
                 {
                 //Orthogonalization failure,
@@ -309,9 +323,10 @@ davidson(BigMatrixT const& A,
                     }
                 }
             q *= 1./qnrm;
+            q.scaleTo(1.);
             ++pass;
             }
-        if(debug_level_ >= 3) println("Done with orthog step");
+        if(debug_level_ >= 3) println("Done with orthog step, tot_pass=",tot_pass);
 
         //Check V's are orthonormal
         //Mat Vo(ni+1,ni+1,NAN); 
@@ -342,7 +357,7 @@ davidson(BigMatrixT const& A,
         //Add new row and column to M
         Mref = subMatrix(M,0,ni+1,0,ni+1);
         auto newCol = subVector(NC,0,1+ni);
-        for(int k = 0; k <= ni; ++k)
+        for(auto k : range(ni+1))
             {
             newCol(k) = (dag(V.at(k))*AV.at(ni)).cplx();
             }
@@ -363,24 +378,24 @@ davidson(BigMatrixT const& A,
     //Compute any remaining eigenvalues and eigenvectors requested
     //(zero indexed) value of t indicates how many have been "targeted" so far
     if(debug_level_ >= 2 && t+1 < nget) printfln("Max iter. reached, computing remaining %d evecs",nget-t-1);
-    for(size_t j = t+1; j < nget; ++j)
+    for(auto j : range(t+1,nget))
         {
         eigs.at(j) = D(j);
         auto& phi_j = phi.at(j);
-        size_t Nr = nrows(U);
+        auto Nr = size_t(nrows(U));
         phi_j = U(0,j)*V[0];
-        for(size_t k = 1; k < std::min(V.size(),Nr); ++k)
+        for(auto k : range1(std::min(V.size(),Nr)-1))
             {
             phi_j += U(k,j)*V[k];
             }
         }
 
-    if(debug_level_ >= 3)
+    if(debug_level_ >= 4)
         {
         //Check V's are orthonormal
         auto Vo_final = CMatrix(iter+1,iter+1);
-        for(int r = 0; r < iter+1; ++r)
-        for(int c = r; c < iter+1; ++c)
+        for(auto r : range(iter+1))
+        for(auto c : range(r,iter+1))
             {
             auto z = (dag(V[r])*V[c]).cplx();
             Vo_final(r,c) = std::abs(z);
@@ -401,6 +416,223 @@ davidson(BigMatrixT const& A,
         }
 
     return eigs;
+    }
+
+namespace gmres_details {
+
+template<class Matrix, class Tensor, class T>
+void
+update(Tensor &x, int const k, Matrix const& h, std::vector<T>& s, std::vector<Tensor> const& v)
+    {
+    std::vector<T> y(s);
+
+    // Backsolve:
+    for (int i = k; i >= 0; i--)
+        {
+        y[i] /= h(i,i);
+        for (int j = i - 1; j >= 0; j--)
+            y[j] -= h(j,i) * y[i];
+        }
+
+    for (int j = 0; j <= k; j++)
+        x += v[j] * y[j];
+    }
+
+template<typename T>
+void
+generatePlaneRotation(T const& dx, T const& dy, T& cs, T& sn)
+    {
+    if(dy == 0.0)
+        {
+        cs = 1.0;
+        sn = 0.0;
+        }
+    else if(std::abs(dy) > std::abs(dx))
+        {
+        auto temp = dx / dy;
+        sn = 1.0 / std::sqrt( 1.0 + temp*temp );
+        cs = temp * sn;
+        }
+    else
+        {
+        auto temp = dy / dx;
+        cs = 1.0 / std::sqrt( 1.0 + temp*temp );
+        sn = temp * cs;
+        }
+    }
+
+void inline
+applyPlaneRotation(Real& dx, Real& dy, Real const& cs, Real const& sn)
+    {
+    auto temp =  cs * dx + sn * dy;
+    dy = -sn * dx + cs * dy;
+    dx = temp;
+    }
+
+void inline
+applyPlaneRotation(Cplx& dx, Cplx& dy, Cplx const& cs, Cplx const& sn)
+    {
+    auto temp =  std::conj(cs) * dx + std::conj(sn) * dy;
+    dy = -sn * dx + cs * dy;
+    dx = temp;
+    }
+
+template<typename Tensor>
+void
+dot(Tensor const& A, Tensor const& B, Real& res)
+    {
+    res = (dag(A)*B).real();
+    }
+
+template<typename Tensor>
+void
+dot(Tensor const& A, Tensor const& B, Cplx& res)
+    {
+    res = (dag(A)*B).cplx();
+    }
+
+}//namespace gmres_details
+
+template<typename T, typename BigMatrixT, typename Tensor>
+void
+gmresImpl(BigMatrixT const& A,
+          Tensor const& b,
+          Tensor& x,
+          Tensor& Ax,
+          Args const& args)
+    {
+    auto n = A.size();
+    auto max_iter = args.getInt("MaxIter",n);
+    auto m = args.getInt("RestartIter",max_iter);
+    auto tol = args.getReal("ErrGoal",1E-14);
+    auto debug_level_ = args.getInt("DebugLevel",-1);
+
+    auto H = Mat<T>(m+1,m+1);
+
+    int i;
+    int j = 1;
+    int k;
+
+    std::vector<T> s(m+1);
+    std::vector<T> cs(m+1);
+    std::vector<T> sn(m+1);
+    Tensor w;
+
+    auto normb = norm(b);
+
+    auto r = b - Ax;
+    auto beta = norm(r);
+
+    if(normb == 0.0)
+        normb = 1.0;
+
+    auto resid = norm(r)/normb;
+    if(resid <= tol)
+        {
+        tol = resid;
+        max_iter = 0;
+        }
+
+    std::vector<Tensor> v(m+1);
+
+    while(j <= max_iter)
+        {
+
+        v[0] = r/beta;
+        v[0].scaleTo(1.0);
+
+        std::fill(s.begin(), s.end(), 0.0);
+        s[0] = beta; 
+
+        for(i = 0; i < m && j <= max_iter; ++i, ++j)
+            {
+            Tensor w;
+            A.product(v[i],w);
+
+            // Begin Arnoldi iteration
+            // TODO: turn into a function?
+            for(k = 0; k<=i; ++k)
+                {
+                gmres_details::dot(w, v[k], H(k,i));
+                w -= H(k,i)*v[k];
+                }
+            auto normw = norm(w);
+
+            if(debug_level_ > 0)
+                println("norm(w) = ", normw);
+
+            H(i+1,i) = normw;
+            if(normw != 0)
+                {
+                v[i+1] = w/H(i+1,i);
+                v[i+1].scaleTo(1.0);
+                }
+            else
+                {
+                // Maybe this should be a warning?
+                // Also, maybe check if it is very close to zero?
+                // GMRES generally is converged at this point anyway
+                error("Norm of new Krylov vector is zero. Try raising 'ErrGoal'.");
+                }
+
+            for(k = 0; k<i; ++k)
+                gmres_details::applyPlaneRotation(H(k,i), H(k+1,i), cs[k], sn[k]);
+
+            gmres_details::generatePlaneRotation(H(i,i), H(i+1,i), cs[i], sn[i]);
+            gmres_details::applyPlaneRotation(H(i,i), H(i+1,i), cs[i], sn[i]);
+            gmres_details::applyPlaneRotation(s[i], s[i+1], cs[i], sn[i]);
+
+            resid = std::abs(s[i+1])/normb;
+
+            if(resid < tol)
+                {
+                gmres_details::update(x, i, H, s, v);
+                return;
+                }
+
+            } // end for loop
+
+            gmres_details::update(x, i-1, H, s, v);
+            A.product(x, Ax);
+            r = b - Ax;
+            beta = norm(r);
+            resid = beta/normb;
+            if(resid < tol)
+                return;
+
+        } // end while loop
+
+    }
+
+
+template<typename BigMatrixT, typename Tensor>
+void
+gmres(BigMatrixT const& A,
+      Tensor const& b,
+      Tensor& x,
+      Args const& args)
+    {
+    auto debug_level_ = args.getInt("DebugLevel",-1);
+
+    // Precompute Ax to figure out whether A or x is
+    // complex, maybe there is a cleaner code design
+    // to avoid this?
+    // Otherwise we would need to require that BigMatrixT
+    // has a function isComplex()
+    Tensor Ax;
+    A.product(x, Ax); 
+    if(isComplex(b) || isComplex(Ax))
+        {
+        if(debug_level_ > 0)
+            println("Calling complex version of gmresImpl()");
+        gmresImpl<Cplx>(A,b,x,Ax,args);
+        }
+    else
+        {
+        if(debug_level_ > 0)
+            println("Calling real version of gmresImpl()");
+        gmresImpl<Real>(A,b,x,Ax,args);
+        }
     }
 
 } //namespace itensor

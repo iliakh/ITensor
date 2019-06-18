@@ -172,7 +172,7 @@ class LocalMPO
         nc_ = val; 
         }
 
-    long
+    size_t
     size() const { return lop_.size(); }
 
     explicit operator bool() const { return Op_ != 0 || Psi_ != 0; }
@@ -180,16 +180,18 @@ class LocalMPO
     bool
     doWrite() const { return do_write_; }
     void
-    doWrite(bool val) 
+    doWrite(bool val,
+            Args const& args = Args::global()) 
         { 
-        if(Psi_ != 0)
-            Error("Write to disk not yet supported for LocalMPO initialized with an MPS");
+        if(Psi_ != 0) Error("Write to disk not yet supported for LocalMPO initialized with an MPS");
         if(!do_write_ && (val == true))
-            initWrite(); 
+            {
+            initWrite(args); 
+            }
         do_write_ = val; 
         }
 
-    const std::string&
+    std::string const&
     writeDir() const { return writedir_; }
 
     int
@@ -212,8 +214,8 @@ class LocalMPO
 
     LocalOp<Tensor> lop_;
 
-    bool do_write_;
-    std::string writedir_;
+    bool do_write_ = false;
+    std::string writedir_ = "./";
 
     const MPSt<Tensor>* Psi_;
 
@@ -235,7 +237,7 @@ class LocalMPO
     setRHlim(int val);
 
     void
-    initWrite();
+    initWrite(Args const& args);
 
     std::string
     PHFName(int j) const
@@ -252,8 +254,6 @@ LocalMPO()
       LHlim_(-1),
       RHlim_(-1),
       nc_(2),
-      do_write_(false),
-      writedir_("."),
       Psi_(0)
     { }
 
@@ -266,8 +266,6 @@ LocalMPO(const MPOt<Tensor>& H,
       LHlim_(0),
       RHlim_(H.N()+1),
       nc_(2),
-      do_write_(false),
-      writedir_("."),
       Psi_(0)
     { 
     if(args.defined("NumCenter"))
@@ -283,8 +281,6 @@ LocalMPO(const MPSt<Tensor>& Psi,
       LHlim_(0),
       RHlim_(Psi.N()+1),
       nc_(2),
-      do_write_(false),
-      writedir_("."),
       Psi_(&Psi)
     { 
     if(args.defined("NumCenter"))
@@ -301,8 +297,6 @@ LocalMPO(const MPOt<Tensor>& H,
       LHlim_(0),
       RHlim_(H.N()+1),
       nc_(2),
-      do_write_(false),
-      writedir_("."),
       Psi_(0)
     { 
     PH_[0] = LH;
@@ -324,8 +318,6 @@ LocalMPO(const MPSt<Tensor>& Psi,
       LHlim_(0),
       RHlim_(Psi.N()+1),
       nc_(2),
-      do_write_(false),
-      writedir_("."),
       Psi_(&Psi)
     { 
     PH_[0] = LP;
@@ -347,8 +339,6 @@ LocalMPO(MPOt<Tensor> const& H,
       LHlim_(LHlim),
       RHlim_(RHlim),
       nc_(2),
-      do_write_(false),
-      writedir_("."),
       Psi_(0)
     { 
     PH_.at(LHlim) = LH;
@@ -499,7 +489,7 @@ makeL(const MPSType& psi, int k)
                 const int ll = LHlim_;
                 PH_.at(ll+1) = (!PH_.at(ll) ? psi.A(ll+1) : PH_[ll]*psi.A(ll+1));
                 PH_[ll+1] *= dag(prime(Psi_->A(ll+1),Link));
-                setLHlim(LHlim_+1);
+                setLHlim(ll+1);
                 }
             }
         else //normal MPO case
@@ -517,7 +507,7 @@ makeL(const MPSType& psi, int k)
                     }
                 PH_.at(ll+1) *= Op_->A(ll+1);
                 PH_.at(ll+1) *= dag(prime(psi.A(ll+1)));
-                setLHlim(LHlim_+1);
+                setLHlim(ll+1);
                 }
             }
         }
@@ -537,7 +527,7 @@ makeR(const MPSType& psi, int k)
                 const int rl = RHlim_;
                 PH_.at(rl-1) = (!PH_.at(rl) ? psi.A(rl-1) : PH_[rl]*psi.A(rl-1));
                 PH_[rl-1] *= dag(prime(Psi_->A(rl-1),Link));
-                setRHlim(RHlim_-1);
+                setRHlim(rl-1);
                 }
             }
         else //normal MPO case
@@ -561,7 +551,7 @@ makeR(const MPSType& psi, int k)
                 PH_.at(rl-1) *= dag(prime(psi.A(rl-1)));
                 //printfln("PH[%d] = \n%s",rl-1,PH_.at(rl-1));
                 //PAUSE
-                setRHlim(RHlim_-1);
+                setRHlim(rl-1);
                 }
             }
         }
@@ -592,17 +582,7 @@ setLHlim(int val)
     if(!PH_.at(LHlim_))
         {
         std::string fname = PHFName(LHlim_);
-        std::ifstream s(fname.c_str());
-        if(s.good())
-            {
-            read(s,PH_.at(LHlim_));
-            s.close();
-            }
-        else
-            {
-            println("Tried to read file ",fname);
-            Error("Missing file");
-            }
+        readFromFile(fname,PH_.at(LHlim_));
         }
     }
 
@@ -631,26 +611,16 @@ setRHlim(int val)
     if(!PH_.at(RHlim_))
         {
         std::string fname = PHFName(RHlim_);
-        std::ifstream s(fname.c_str());
-        if(s.good())
-            {
-            read(s,PH_.at(RHlim_));
-            s.close();
-            }
-        else
-            {
-            println("Tried to read file ",fname);
-            Error("Missing file");
-            }
+        readFromFile(fname,PH_.at(RHlim_));
         }
     }
 
 template <class Tensor>
 void inline LocalMPO<Tensor>::
-initWrite()
+initWrite(Args const& args)
     {
-    std::string global_write_dir = Global::args().getString("WriteDir","./");
-    writedir_ = mkTempDir("PH",global_write_dir);
+    auto basedir = args.getString("WriteDir","./");
+    writedir_ = mkTempDir("PH",basedir);
     }
 
 } //namespace itensor

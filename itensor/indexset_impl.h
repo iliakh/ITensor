@@ -2,8 +2,8 @@
 // Distributed under the ITensor Library License, Version 1.2
 //    (See accompanying LICENSE file.)
 //
-#ifndef __ITENSOR_INDEXSET_IH
-#define __ITENSOR_INDEXSET_IH
+#ifndef __ITENSOR_INDEXSET_IMPL_H
+#define __ITENSOR_INDEXSET_IMPL_H
 
 namespace itensor {
 
@@ -206,6 +206,33 @@ prime(IndexSetT<IndexT>& is,
       int inc) 
     { 
     prime(is,All,inc); 
+    }
+
+template<typename IndexT, typename... VArgs>
+void
+primeLevel(IndexSetT<IndexT>& is,
+           VArgs&&... vargs)
+    {
+    constexpr size_t size = sizeof...(vargs);
+    auto ints = std::array<int,size>{{static_cast<int>(vargs)...}};
+
+    if(size != size_t(is.r()))
+        {
+        println("---------------------------------------------");
+        println("IndexSet indices = \n",is,"\n");
+        println("---------------------------------------------");
+        println("Prime levels provided = ");
+        for(auto& i : ints) println(i);
+        println("---------------------------------------------");
+        Error(format("Wrong number of prime levels passed to primeLevel (expected %d, got %d)",is.r(),size));
+        }
+
+    int i = 0;
+    for(auto& J : is)
+        {
+        J.primeLevel(ints[i]);
+        i++;
+        }
     }
 
 //template<typename IndexT, typename... Inds>
@@ -478,7 +505,7 @@ dir(const IndexSetT<IndexT>& is, const IndexT& I)
 
 
 template <class IndexT>
-const IndexT&
+IndexT
 finddir(const IndexSetT<IndexT>& iset, Arrow dir)
     {
     for(const auto& J : iset)
@@ -507,7 +534,7 @@ findindex(const IndexSetT<IndexT>& iset,
     }
 
 template <class IndexT>
-const IndexT&
+IndexT
 findtype(const IndexSetT<IndexT>& iset, IndexType t)
 	{
     for(auto& J : iset)

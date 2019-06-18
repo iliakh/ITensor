@@ -58,12 +58,14 @@ diagHImpl(ITensor H,
     auto pdiff = std::abs(i1.primeLevel()-i2.primeLevel());
 
 
+#ifdef USESCALE
     //Depending on the sign of the scale, calling .toMatrix11NoScale 
     //yields a matrix proportional to either H or -H.
     //If H (scale().sign() > 0) then want to temporarily reverse 
     //the sign of the matrix when calling the diagonalization routine
     //to ensure eigenvalues are ordered from largest to smallest.
     if(H.scale().sign() < 0) H.scaleTo(H.scale()*(-1));
+#endif
 
     //Do the diagonalization
     Vector DD;
@@ -79,7 +81,7 @@ diagHImpl(ITensor H,
     if(do_truncate)
         {
         //if(DD(1) < 0) DD *= -1; //DEBUG
-        tie(truncerr,docut) = truncate(DD,maxm,minm,cutoff,absoluteCutoff,doRelCutoff);
+        tie(truncerr,docut) = truncate(DD,maxm,minm,cutoff,absoluteCutoff,doRelCutoff,args);
         m = DD.size();
         reduceCols(UU,m);
         }
@@ -232,7 +234,7 @@ diagHImpl(IQTensor    H,
     if(do_truncate)
         {
         tie(truncerr,docut) = truncate(probs,maxm,minm,cutoff,
-                                       absoluteCutoff,doRelCutoff);
+                                       absoluteCutoff,doRelCutoff,args);
         m = probs.size();
         alleigqn.resize(m);
         }

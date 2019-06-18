@@ -23,8 +23,8 @@ namespace itensor {
 template<>
 ITensor::
 ITensorT(Cplx val) 
-  : scale_(1.)
     { 
+    IF_USESCALE(scale_ = LogNum(1.);)
     if(val.imag() == 0)
         {
         store_ = newITData<ScalarReal>(val.real());
@@ -143,10 +143,7 @@ combiner(std::vector<Index> inds, Args const& args)
     {
     if(inds.empty()) Error("No indices passed to combiner");
     long rm = 1;
-    for(const auto& i : inds)
-        {
-        rm *= i.m();
-        }
+    for(const auto& i : inds)rm *= i.m();
     //increase size by 1
     inds.push_back(Index());
     //shuffle contents to the end

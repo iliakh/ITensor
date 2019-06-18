@@ -5,6 +5,7 @@
 #ifndef __ITENSOR_LOCAL_OP
 #define __ITENSOR_LOCAL_OP
 #include "itensor/iqtensor.h"
+//#include "itensor/util/print_macro.h"
 
 namespace itensor {
 
@@ -36,7 +37,7 @@ class LocalOp
     Tensor const* Op2_;
     Tensor const* L_;
     Tensor const* R_;
-    mutable long size_;
+    mutable size_t size_;
     public:
 
     using IndexT = typename Tensor::index_type;
@@ -75,7 +76,7 @@ class LocalOp
     Tensor
     diag() const;
 
-    long
+    size_t
     size() const;
 
     //
@@ -267,12 +268,14 @@ deltaRho(Tensor const& AA,
         if(!RIsNull()) drho *= R();
         drho *= (*Op2_);
         }
-
     drho.noprime();
     drho = combine * drho;
     auto ci = commonIndex(combine,drho);
-    
     drho *= dag(prime(drho,ci));
+
+    //Expedient to ensure drho is Hermitian
+    drho = drho + dag(swapPrime(drho,0,1));
+    drho /= 2.;
 
     return drho;
     }
@@ -343,11 +346,11 @@ diag() const
     }
 
 template <class Tensor>
-long inline LocalOp<Tensor>::
+size_t inline LocalOp<Tensor>::
 size() const
     {
     if(!(*this)) Error("LocalOp is default constructed");
-    if(size_ == -1)
+    if(size_ == size_t(-1))
         {
         //Calculate linear size of this 
         //op as a square matrix

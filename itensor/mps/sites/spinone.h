@@ -5,6 +5,7 @@
 #ifndef __ITENSOR_SPINONE_H
 #define __ITENSOR_SPINONE_H
 #include "itensor/mps/siteset.h"
+#include "itensor/mps/sites/spinhalf.h"
 
 namespace itensor {
 
@@ -217,6 +218,30 @@ class SpinOneSite
                 Op.set(Z0,Z0P,ssp1);
             }
         else
+	if(opname == "PiSx")
+	   {
+	   Op = mixedIQTensor(dag(s),sP);
+           Op.set(Up,DnP,-1.0);
+           Op.set(Z0,Z0P,-1.0);
+           Op.set(Dn,UpP,-1.0);
+           }
+	else
+        if(opname == "PiSy")
+           {
+           Op = mixedIQTensor(dag(s),sP);
+           Op.set(Up,DnP,1.0);
+           Op.set(Z0,Z0P,-1.0);
+           Op.set(Dn,UpP,1.0);
+           }
+	else
+        if(opname == "PiSz")
+           {
+           Op = mixedIQTensor(dag(s),sP);
+           Op.set(Up,UpP,-1.0);
+           Op.set(Z0,Z0P,1.0);
+           Op.set(Dn,DnP,-1.0);
+           }
+	else
             {
             Error("Operator \"" + opname + "\" name not recognized");
             }

@@ -111,7 +111,8 @@ truncate(Vector & P,
          long minm,
          Real cutoff,
          bool absoluteCutoff,
-         bool doRelCutoff)
+         bool doRelCutoff,
+         Args const& args)
     {
     long origm = P.size();
     long n = origm-1;
@@ -181,7 +182,15 @@ truncate(Vector & P,
     //get correct state count m
     auto m = n+1;
 
-    if(m < origm) docut = (P(m) + P(m-1))/2. - 1E-5*P(m);
+    if(n+1 < origm) 
+        {
+        docut = (P(n+1) + P(n))/2.;
+        //Check for a degeneracy:
+        if(std::fabs(P(n+1)-P(n)) < 1E-3*P(n)) 
+            {
+            docut += 1E-3*P(n);
+            }
+        }
 
     resize(P,m); 
 
@@ -205,12 +214,14 @@ showEigs(Vector const& P,
     printfln("minm = %d, maxm = %d, cutoff = %.2E, truncate = %s",minm,maxm,cutoff,do_truncate);
     printfln("Kept m=%d states, trunc. err. = %.3E", P.size(),truncerr);
     printfln("doRelCutoff = %s, absoluteCutoff = %s",doRelCutoff,absoluteCutoff);
-    printfln("Scale is = %sexp(%.2f)",scale.sign() > 0 ? "" : "-",scale.logNum());
+    IF_USESCALE(printfln("Scale is = %sexp(%.2f)",scale.sign() > 0 ? "" : "-",scale.logNum());)
 
     auto stop = std::min(size_t{10},P.size());
     auto Ps = Vector(subVector(P,0,stop));
 
-    //Real orderMag = log(std::fabs(P(0))) + scale.logNum();
+#ifndef USESCALE
+    print("Eigenvalues:");
+#else
     if(scale.logNum() < 10 && scale.isFiniteReal())
         {
         Ps *= sqr(scale.real0());
@@ -220,6 +231,7 @@ showEigs(Vector const& P,
         {
         print("Eigenvalues [not including scale = ",scale.logNum(),"]:");
         }
+#endif
 
     for(auto n : range(Ps))
         {

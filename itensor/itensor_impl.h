@@ -2,8 +2,8 @@
 // Distributed under the ITensor Library License, Version 1.2
 //    (See accompanying LICENSE file.)
 //
-#ifndef __ITENSOR_ITENSOR_IH_
-#define __ITENSOR_ITENSOR_IH_
+#ifndef __ITENSOR_ITENSOR_IMPL_H_
+#define __ITENSOR_ITENSOR_IMPL_H_
 
 //
 // Template Method Implementations
@@ -54,27 +54,50 @@ operator*(IndexVal const& iv1, Cplx val)
     return res; 
     }
 
+ITensor inline
+delta(IndexSet const& is)
+    { 
+    auto len = minM(is);
+    return ITensor(std::move(is),DiagReal(len,1.));
+    }
+
 template<typename... Inds>
 ITensor
 delta(Index const& i1,
       Inds const&... inds)
     { 
-    auto is = IndexSet(i1,inds...);
-    auto len = minM(is);
-    return ITensor(std::move(is),DiagReal(len,1.));
+    return delta(IndexSet(i1,inds...));
     }
 
-template<typename Container, typename... Inds, class>
+ITensor inline
+delta(std::vector<Index> const& is)
+    {
+    return delta(IndexSet(is));
+    }
+
+template<size_t N>
+ITensor
+delta(std::array<Index,N> const& is)
+    {
+    return delta(IndexSet(is));
+    }
+
+
+ITensor inline
+delta(std::initializer_list<Index> is)
+    {
+    return delta(IndexSet(is));
+    }
+
+template<typename Container, class>
 ITensor
 diagTensor(Container const& C, 
-           Index const& i1,
-           Inds &&... inds)
+           IndexSet const& is)
     { 
-    auto is = IndexSet(i1,std::forward<Inds>(inds)...);
 #ifdef DEBUG
     using size_type = decltype(C.size());
     //Compute min of all index dimensions
-    auto minm = i1.m();
+    auto minm = is[0].m();
     for(const auto& ind : is)
         if(ind.m() < minm) minm = ind.m();
     if(C.size() != size_type(minm))
@@ -89,46 +112,45 @@ diagTensor(Container const& C,
     }
 
 
+template<typename Container, typename... Inds>
+ITensor
+diagTensor(Container const& C, 
+           Index const& i1,
+           Inds &&... inds)
+    { 
+    return diagTensor(C,IndexSet(i1,std::forward<Inds>(inds)...));
+    }
+
+template<typename Container>
+ITensor
+diagTensor(Container const& C, 
+           std::vector<Index> const& is)
+    { 
+    return diagTensor(C,IndexSet(is));
+    }
+
+template<typename Container,
+         size_t N>
+ITensor
+diagTensor(Container const& C, 
+           std::array<Index,N> const& is)
+    { 
+    return diagTensor(C,IndexSet(is));
+    }
+
+template<typename Container>
+ITensor
+diagTensor(Container const& C,
+           std::initializer_list<Index> is)
+    { 
+    return diagTensor(C,IndexSet(is));
+    }
+
 template<typename IndexT>
 ITensorT<IndexT>
 randomTensor(const IndexSetT<IndexT>& inds)
     {
     return random(ITensorT<IndexT>{inds});
-    }
-
-template<typename V, typename... Indxs>
-TenRef<Range1,V>
-ordered_impl(ITensor & T, Indxs&&... inds)
-    {
-    T.scaleTo(1.);
-    auto getData = [](Dense<V> & d) -> DataRange<V> 
-        { 
-        return makeDataRange(d.data(),d.size()); 
-        };
-    auto d = applyFunc(getData,T.store());
-    constexpr auto size = sizeof...(inds);
-    auto indarr = std::array<Index,size>{{static_cast<Index>(inds)...}};
-    auto P = Permutation(T.r());
-    calcPerm(T.inds(),indarr,P);
-    return makeRef(d,permuteRangeTo<Range1>(T.inds(),P));
-    }
-
-template<typename... Indxs>
-TensorRef1
-ordered(ITensor & T, Indxs&&... inds)
-    {
-    if(!T.store()) detail::allocReal(T);
-    else if(isComplex(T)) Error("ITensor is complex; use orderedC instead of ordered");
-    return ordered_impl<Real>(T,std::forward<Indxs>(inds)...);
-    }
-
-template<typename... Indxs>
-CTensorRef1
-orderedC(ITensor & T, Indxs&&... inds)
-    {
-    if(!T.store()) detail::allocCplx(T);
-    else           doTask(MakeCplx{},T.store());
-    return ordered_impl<Cplx>(T,std::forward<Indxs>(inds)...);
     }
 
 } //namespace itensor

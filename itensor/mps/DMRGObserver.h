@@ -4,6 +4,7 @@
 //
 #ifndef __ITENSOR_DMRGOBSERVER_H
 #define __ITENSOR_DMRGOBSERVER_H
+#include "itensor/mps/mps.h"
 #include "itensor/mps/observer.h"
 #include "itensor/spectrum.h"
 
@@ -83,6 +84,7 @@ measure(Args const& args)
     auto N = psi_.N();
     auto b = args.getInt("AtBond",1);
     auto sw = args.getInt("Sweep",0);
+    auto nsweep = args.getInt("NSweep",0);
     auto ha = args.getInt("HalfSweep",0);
     auto energy = args.getReal("Energy",0);
 
@@ -134,11 +136,13 @@ measure(Args const& args)
     if(b == 1 && ha == 2) 
         {
         if(!printeigs) println();
-        println("    Largest m during sweep ",sw," was ",(max_eigs > 1 ? max_eigs : 1));
+        auto swstr = (nsweep>0) ? format("%d/%d",sw,nsweep) 
+                                : format("%d",sw);
+        println("    Largest m during sweep ",swstr," was ",(max_eigs > 1 ? max_eigs : 1));
         max_eigs = -1;
         println("    Largest truncation error: ",(max_te > 0 ? max_te : 0.));
         max_te = -1;
-        printfln("    Energy after sweep %d is %.12f",sw,energy);
+        printfln("    Energy after sweep %s is %.12f",swstr,energy);
         }
 
     }

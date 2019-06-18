@@ -87,10 +87,23 @@ combiner(IQIndex const& i1,
 
 //Construct diagonal IQTensor with diagonal 
 //elements set to 1.0
+IQTensor
+delta(IQIndexSet const& is);
+
 template<typename... Inds>
 IQTensor
 delta(IQIndex const& i1,
       Inds const&... inds);
+
+IQTensor
+delta(std::vector<IQIndex> const& is);
+
+template<size_t N>
+IQTensor
+delta(std::array<IQIndex,N> const& is);
+
+IQTensor
+delta(std::initializer_list<IQIndex> is);
 
 IQIndex
 findIQInd(IQTensor const& T, Index const& i);
@@ -113,9 +126,16 @@ template <typename... Inds>
 IQTensor
 randomTensor(QN const& q, IQIndex const& i1, Inds &&... inds);
 
+template<typename... Inds>
+IQTensor
+randomTensor(QN const& q, IQIndexSet const& is);
+
 template <typename... VArgs>
 IQTensor
 randomTensorC(QN const& q, VArgs&&... vargs);
+
+bool
+isEmpty(IQTensor const& T);
 
 //mixedIQTensor constructs
 //an IQTensor with MixedQN storage
@@ -139,7 +159,7 @@ typeNameOf(AddITensor const&);
 
 } //namespace itensor
 
-//See file iqtensor.ih for template/inline method implementations
-#include "itensor/iqtensor.ih"
+//See file iqtensor_impl.h for template/inline method implementations
+#include "itensor/iqtensor_impl.h"
 
 #endif
